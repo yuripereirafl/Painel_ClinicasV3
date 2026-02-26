@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: painel_clinica_web
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - USE_SQLITE=true
+      - SECRET_KEY=clinica_secret_key
+      # Se quiser usar Postgres no futuro, mude USE_SQLITE para false e preencha abaixo:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=mydatabase
+      - POSTGRES_HOST=db
+    volumes:
+      - .:/app
+      - static_tts:/app/static/tts
+    # depends_on:
+    #   - db # Descomente se usar Postgres
+
+  # db: # Comentei o banco Postgres para salvar memória no Raspberry Pi 3
+  #   image: postgres:13
+  #   container_name: painel_clinica_db
+  #   restart: always
+  #   environment:
+  #     POSTGRES_USER: myuser
+  #     POSTGRES_PASSWORD: mypassword
+  #     POSTGRES_DB: mydatabase
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+  static_tts:

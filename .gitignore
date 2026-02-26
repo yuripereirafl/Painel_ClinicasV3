@@ -1,0 +1,10 @@
+static/Video4.mp4
+__pycache__/
+*.py[cod]
+*$py.class
+instance/
+.env
+temp_ticket.png
+static/tts/
+*.db
+*.log

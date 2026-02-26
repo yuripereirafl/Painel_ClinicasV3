@@ -1,0 +1,83 @@
+/* Título principal centralizado */
+header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+header h1 {
+    font-size: 32px;
+    color: #005580;
+    margin-bottom: 30px;
+}
+
+/* Centralização do conteúdo */
+main {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Formulário melhor espaçado */
+.clinic-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.form-group input {
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 18px;
+}
+
+/* Botão maior e centralizado */
+.submit-button {
+    padding: 15px;
+    background-color: #005580;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.submit-button:hover {
+    background-color: #003d66;
+}
+
+/* Lista de clínicas melhor espaçada */
+.clinic-list li {
+    background-color: #f9f9f9;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-size: 18px;
+}
+
+/* Mensagens de feedback */
+.messages-list {
+    margin-top: 30px;
+}
+
+.message {
+    padding: 12px;
+    border-radius: 5px;
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+/* Rodapé centralizado e ajustado */
+footer {
+    text-align: center;
+    margin-top: 40px;
+    font-size: 14px;
+    color: #555;
+}

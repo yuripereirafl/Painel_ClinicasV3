@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Senhas</title>
+    <link rel="stylesheet" href="/static/stylePanel.css">
+</head>
+
+<body>
+    <div id="panel-container">
+        <div id="sidebar">
+            <img id="clinic-logo" src="/static/logoo.png" alt="Logo da Clínica">
+            <h3>Últimas Senhas Chamadas</h3>
+            <div id="info-box">
+                <span>Senha</span>
+                <span>Guichê</span>
+            </div>
+            <ul id="recent-list"></ul>
+        </div>
+
+        <div id="main-content">
+            <div id="header">
+                <div class="header-item">
+                    <span>Senha:</span>
+                    <h1 id="current-password">0</h1>
+                </div>
+                <div class="header-item">
+                    <span>Guichê:</span>
+                    <h1 id="current-guiche">0</h1>
+                </div>
+                <div id="queue-name-display"></div>
+            </div>
+
+            <div id="video-container">
+                <video id="clinic-video" controls autoplay muted loop>
+                    <source src="/static/video2025.mp4" type="video/mp4">
+                    Seu navegador não suporta vídeos HTML5.
+                </video>
+
+                <!-- Modal centralizado sobre o vídeo -->
+                <div id="name-modal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <h3>Paciente:</h3>
+                        <h1 id="modal-name">Nome do Paciente</h1>
+                        <h3>Guichê:</h3>
+                        <h2 id="modal-guiche">1</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data, Hora e Unidade fora do vídeo, no canto inferior esquerdo -->
+        <div id="footer">
+            <span id="current-date"></span> | <span id="current-time"></span> | <span id="current-unit">Unidade {{
+                clinic.name }}</span>
+        </div>
+    </div>
+
+    <audio id="sound-alert" src="/static/som_chamada.mp3" preload="auto"></audio>
+    <audio id="test-audio" src="/static/test_audio.mp3" preload="auto"></audio>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // Função para alternar tela cheia para o contêiner do painel
+        function openFullscreen() {
+            const panelContainer = document.getElementById('panel-container');
+            if (panelContainer.requestFullscreen) {
+                panelContainer.requestFullscreen();
+            } else if (panelContainer.webkitRequestFullscreen) { /* Safari */
+                panelContainer.webkitRequestFullscreen();
+            } else if (panelContainer.msRequestFullscreen) { /* IE11 */
+                panelContainer.msRequestFullscreen();
+            }
+        }
+
+        // Exemplo: Ativar tela cheia quando a página carregar
+        window.onload = function () {
+            openFullscreen();
+        };
+
+        // Socket.io para atualização das senhas
+        var socket = io.connect('http://' + document.domain + ':' + location.port);
+        var clinic_id = {{ clinic.id | tojson }};
+        socket.emit('join', { 'clinic_id': clinic_id });
+
+        var sound = document.getElementById('sound-alert');
+        var soundQueue = [];
+        var isPlayingSound = false;
+
+        function playSoundQueue() {
+            if (soundQueue.length > 0 && !isPlayingSound) {
+                isPlayingSound = true;
+                const sound = document.getElementById('sound-alert');
+                sound.currentTime = 0;
+                sound.play().then(() => {
+                    isPlayingSound = false;
+                    soundQueue.shift();
+                    playSoundQueue();
+                }).catch((error) => {
+                    console.error("Erro ao tentar reproduzir o som:", error);
+                    isPlayingSound = false;
+                });
+            }
+        }
+
+        // --- NOVIDADE: Sincronização e Estabilidade ---
+
+        // Função para carregar o estado atual do painel (senhas já chamadas)
+        function loadCurrentState() {
+            fetch(`/api/clinic/${clinic_id}/called_today`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        const last = data[0];
+                        document.getElementById('current-password').innerHTML = last.number;
+                        document.getElementById('current-guiche').innerHTML = last.guiche;
+
+                        const recentList = document.getElementById('recent-list');
+                        recentList.innerHTML = '';
+                        // Pega os últimos 5 para a lateral (excluindo a principal que já está no topo se desejar, ou mantendo)
+                        data.slice(0, 5).forEach(p => {
+                            const newItem = document.createElement('li');
+                            newItem.innerHTML = `<span>${p.number}</span><span>${p.guiche}</span>`;
+                            recentList.appendChild(newItem);
+                        });
+                    }
+                })
+                .catch(err => console.error("Erro ao sincronizar painel:", err));
+        }
+
+        // Função para recarregar a página às 03:00 da manhã (Apenas uma vez)
+        function checkDailyReload(now) {
+            const today = now.toDateString();
+            if (now.getHours() === 3 && now.getMinutes() === 0) {
+                if (localStorage.getItem('lastReload') !== today) {
+                    localStorage.setItem('lastReload', today);
+                    console.log("Reiniciando painel para limpeza diária...");
+                    location.reload();
+                }
+            }
+        }
+
+        // Indicador visual de conexão (subtil)
+        function updateStatus(connected) {
+            const footer = document.getElementById('footer');
+            footer.style.borderLeft = connected ? "5px solid #28a745" : "5px solid #dc3545";
+        }
+
+        // Reproduzir som diretamente ao chamar nova senha
+        socket.on('new_password', function (data) {
+            // Atualizar senha e guichê no painel principal
+            document.getElementById('current-password').innerHTML = data.password;
+            document.getElementById('current-guiche').innerHTML = data.guiche;
+
+            // Atualizar classe de cor e nome da fila
+            const header = document.getElementById('header');
+            const queueDisplay = document.getElementById('queue-name-display');
+            header.className = ''; // Limpa classes anteriores
+
+            const queueMap = {
+                'NORMAL': { name: 'Normal', class: 'queue-normal' },
+                'PRIORITARIA': { name: 'Prioritária', class: 'queue-prioritaria' },
+                'DR_CENTRAL': { name: 'DR Central', class: 'queue-dr_central' }
+            };
+
+            const queueInfo = queueMap[data.queue_type] || queueMap['NORMAL'];
+            header.classList.add(queueInfo.class);
+            queueDisplay.innerText = ''; // Não exibir nome da fila
+
+            // Reproduzir som de alerta
+            const sound = document.getElementById('sound-alert');
+            if (sound) {
+                sound.currentTime = 0; // Reinicia o som
+                sound.play().then(() => {
+                    console.log("Som de alerta reproduzido com sucesso.");
+                }).catch((error) => {
+                    console.error("Erro ao tentar reproduzir o som de alerta:", error);
+                });
+            } else {
+                console.error("Elemento de som não encontrado.");
+            }
+
+            // Adicionar a senha à lista de últimas chamadas
+            var recentList = document.getElementById('recent-list');
+            var newItem = document.createElement('li');
+            newItem.className = queueInfo.class; // Opcional: manter cor na lista lateral
+            newItem.innerHTML = `<span>${data.password}</span><span>${data.guiche}</span>`;
+            recentList.insertBefore(newItem, recentList.firstChild);
+
+            // Limitar a lista a 5 itens
+            if (recentList.children.length > 5) {
+                recentList.removeChild(recentList.lastChild);
+            }
+        });
+
+        socket.on('new_password', function (data) {
+            console.log("Evento 'new_password' recebido:", data);
+        });
+
+        // Atualizar data e hora no rodapé
+        function updateDateTime() {
+            var now = new Date();
+            document.getElementById('current-date').innerHTML = now.toLocaleDateString();
+            document.getElementById('current-time').innerHTML = now.toLocaleTimeString();
+            checkDailyReload(now); // Verifica se deve resetar o painel
+        }
+
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+
+        socket.on('display_name', function (data) {
+            const name = data.name;
+            const guiche = data.guiche;
+
+            if (name && guiche) {
+                const modal = document.getElementById('name-modal');
+                const modalName = document.getElementById('modal-name');
+                const modalGuiche = document.getElementById('modal-guiche');
+                modalName.textContent = `Chamando: ${name}`;
+                modalGuiche.textContent = `Guichê: ${guiche}`;
+                modal.style.display = 'flex';
+
+                const utterance = new SpeechSynthesisUtterance(`Chamando ${name} no guichê ${guiche}`);
+                utterance.lang = 'pt-BR';
+                speechSynthesis.speak(utterance);
+
+                // Fechar o modal após 5 segundos
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                }, 5000); // Alterado para 5 segundos
+            }
+        });
+
+        // Evento para exibir chamada pelo nome usando TTS do servidor
+        socket.on('name_called', function (data) {
+            if (data && data.name && data.guiche) {
+                // Exibir o modal
+                const modal = document.getElementById('name-modal');
+                const modalName = document.getElementById('modal-name');
+                const modalGuiche = document.getElementById('modal-guiche');
+                modalName.textContent = data.name;
+                modalGuiche.textContent = data.guiche;
+                modal.style.display = 'flex';
+
+                // Gere o texto para narração
+                const texto = `Paciente ${data.name}, por favor, dirigir-se ao guichê ${data.guiche}`;
+
+                // Chama a API TTS do servidor e toca o áudio
+                fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ texto })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        const audio = new Audio(data.url);
+                        // Tenta tocar imediatamente, se falhar tenta ao carregar
+                        audio.play().catch(() => {
+                            audio.addEventListener('canplaythrough', () => {
+                                audio.play();
+                            });
+                            audio.load();
+                        });
+                    })
+                    .catch(err => {
+                        console.error("Erro ao buscar áudio TTS:", err);
+                    });
+
+                // Fechar o modal após 5 segundos
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                }, 5000);
+            }
+        });
+
+        socket.on('name_called', function (data) {
+            console.log("Evento 'name_called' recebido:", data);
+        });
+
+        socket.on('connect', function () {
+            console.log('WebSocket conectado/reconectado com sucesso.');
+            socket.emit('join', { 'clinic_id': clinic_id });
+            loadCurrentState();
+            updateStatus(true);
+        });
+
+        let disconnectTimeout;
+        socket.on('disconnect', function () {
+            console.warn('WebSocket desconectado. Tentando reconectar...');
+            updateStatus(false);
+            clearTimeout(disconnectTimeout);
+            disconnectTimeout = setTimeout(() => {
+                if (!socket.connected) {
+                    console.log("Muito tempo sem conexão. Forçando recarregamento...");
+                    location.reload();
+                }
+            }, 30000);
+        });
+
+        // Tentar forçar tela cheia em qualquer clique (caso o kiosk falhe)
+        document.body.onclick = openFullscreen;
+
+        document.getElementById('test-speech').onclick = function () {
+            const audio = document.getElementById('test-audio');
+            if (audio) {
+                audio.currentTime = 0; // Reinicia o áudio
+                audio.play().then(() => {
+                    console.log("Áudio pré-gravado reproduzido com sucesso.");
+                }).catch((error) => {
+                    console.error("Erro ao tentar reproduzir o áudio pré-gravado:", error);
+                });
+            } else {
+                console.error("Elemento de áudio não encontrado.");
+            }
+        };
+    </script>
+</body>
+
+</html>

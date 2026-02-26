@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atendente - {{ clinic.name }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/styleAttendant.css">
+</head>
+
+<body>
+    <div id="attendant-container" data-clinic-id="{{ clinic.id }}">
+        <header>
+            <h3>Atendente - Unidade {{ clinic.name }}</h3>
+            <p>Localização: {{ clinic.location }}</p>
+        </header>
+
+        <div class="current-call-display" id="current-call-box" style="display: none;">
+            <div class="status-badge"><span class="pulse"></span> Chamando Agora</div>
+            <div class="huge-number" id="current-num">00</div>
+            <div class="current-meta" id="current-info">NORMAL | Guichê 1</div>
+        </div>
+
+        <div class="top-controls">
+            <section class="control-section">
+                <h4><i class="fas fa-desktop"></i> Central de Consultas</h4>
+                <div class="form-group">
+                    <label>Selecione seu Guichê</label>
+                    <select id="guiche-select">
+                        <option value="1">Guichê 1</option>
+                        <option value="2">Guichê 2</option>
+                        <option value="3">Guichê 3</option>
+                        <option value="4">Guichê 4</option>
+                        <option value="5">Guichê 5</option>
+                        <option value="6">Guichê 6</option>
+                        <option value="7">Guichê 7</option>
+                        <option value="8">Guichê 8</option>
+                        <option value="9">Guichê 9</option>
+                        <option value="10">Guichê 10</option>
+                    </select>
+                </div>
+
+                <div class="form-group search-box">
+                    <label>Chamar por Nome</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-user-tag"></i>
+                        <input type="text" id="patient-name" placeholder="Nome do paciente...">
+                    </div>
+                    <button id="call-by-name" class="btn-secondary">
+                        <i class="fas fa-bullhorn"></i> Chamar Nome
+                    </button>
+                </div>
+            </section>
+
+            <section class="button-section">
+                <h4><i class="fas fa-bolt"></i> Ações de Chamada</h4>
+                <button id="call-prioritaria" class="btn-call prioritaria">
+                    <i class="fas fa-wheelchair"></i> Próxima Prioritária
+                </button>
+                <button id="call-dr-central" class="btn-call dr-central">
+                    <i class="fas fa-user-md"></i> Próxima DR Central
+                </button>
+                <button id="call-normal" class="btn-call normal">
+                    <i class="fas fa-user"></i> Próxima Normal
+                </button>
+                <button id="attend-patient" class="btn-success" style="display: none;">
+                    <i class="fas fa-check-circle"></i> Concluir Atendimento
+                </button>
+            </section>
+        </div>
+
+        <div class="lists-container">
+            <section class="waiting-section">
+                <h4>Senhas Aguardando</h4>
+                <ul id="waiting-passwords" aria-live="polite">
+                    <!-- Senhas aguardando aparecem aqui -->
+                </ul>
+            </section>
+
+            <section class="recent-calls-section">
+                <h4>Últimas Senhas Chamadas</h4>
+                <ul id="recent-calls" aria-live="polite">
+                    <!-- Senhas chamadas aparecem aqui -->
+                </ul>
+            </section>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const clinic_id = document.getElementById('attendant-container').getAttribute('data-clinic-id');
+        const socket = io.connect('http://' + document.domain + ':' + location.port);
+
+        socket.emit('join', { 'clinic_id': clinic_id });
+
+        // Todos os botões agora chamam a próxima senha global para garantir a sequência correta
+        document.getElementById('call-normal').onclick = () => callNext('NORMAL');
+        document.getElementById('call-prioritaria').onclick = () => callNext('PRIORITARIA');
+        document.getElementById('call-dr-central').onclick = () => callNext('DR_CENTRAL');
+
+        function callNext(type) {
+            const guiche = document.getElementById('guiche-select').value;
+            if (guiche) {
+                // Agora envia o tipo específico de fila para o servidor
+                socket.emit('call_next', { clinic_id: clinic_id, guiche: guiche, queue_type: type });
+            } else {
+                alert('Selecione seu guichê primeiro.');
+            }
+        }
+
+        // Chamada por Nome
+        document.getElementById('call-by-name').onclick = function () {
+            const name = document.getElementById('patient-name').value;
+            const guiche = document.getElementById('guiche-select').value;
+
+            if (name && guiche) {
+                socket.emit('name_called', { name: name, guiche: guiche, clinic_id: clinic_id });
+                updateRecentCalls(name, guiche, 'POR NOME', null, true);
+                document.getElementById('patient-name').value = '';
+            } else {
+                alert('Informe o nome do paciente e selecione o guichê.');
+            }
+        };
+
+        // Concluir Atendimento
+        document.getElementById('attend-patient').onclick = function () {
+            toggleCallButtons(true);
+            this.style.display = 'none';
+            document.getElementById('current-call-box').style.display = 'none';
+        };
+
+        // Carrega o histórico de chamadas (Direita)
+        function loadHistory() {
+            fetch(`/api/clinic/${clinic_id}/called_today`)
+                .then(res => res.json())
+                .then(data => {
+                    const list = document.getElementById('recent-calls');
+                    list.innerHTML = '';
+                    data.forEach(p => updateRecentCalls(p.number, p.guiche, p.queue_type, p.called_at));
+                });
+        }
+
+        // Carrega a fila de espera (Esquerda)
+        function loadWaiting() {
+            fetch(`/api/clinic/${clinic_id}/waiting`)
+                .then(res => res.json())
+                .then(data => {
+                    const list = document.getElementById('waiting-passwords');
+                    list.innerHTML = '';
+                    if (data.length === 0) {
+                        list.innerHTML = `<li style="justify-content:center; color:var(--text-muted)">Fila vazia</li>`;
+                    } else {
+                        data.forEach(p => {
+                            const li = document.createElement('li');
+                            const qType = (p.queue_type || 'NORMAL').toLowerCase();
+                            // p.number já vem formatado com prefixo da API
+                            li.innerHTML = `
+                                <span class="list-password-num">${p.number}</span>
+                                <div class="list-meta">
+                                    <span class="badge badge-${qType}">${p.queue_type}</span>
+                                </div>
+                            `;
+                            list.appendChild(li);
+                        });
+                    }
+                });
+        }
+
+        // Adiciona item na lista de chamadas recentes
+        function updateRecentCalls(id, guiche, type, time = null, isLive = false) {
+            const list = document.getElementById('recent-calls');
+            const li = document.createElement('li');
+            const now = time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const qType = (type || 'NORMAL').toLowerCase().replace(' ', '_');
+
+            li.innerHTML = `
+                <span class="list-password-num">${id}</span>
+                <div class="list-meta">
+                    <span class="badge badge-${qType}">${type || 'NORMAL'}</span>
+                    <span class="badge badge-guiche">Guichê ${guiche}</span>
+                    <span class="time-text"><i class="far fa-clock"></i> ${now}</span>
+                </div>
+            `;
+
+            if (isLive) {
+                list.insertBefore(li, list.firstChild);
+
+                // NOVIDADE: Só mostra o destaque e libera o botão de concluir se for o MEU guichê chamando
+                const meuGuiche = document.getElementById('guiche-select').value;
+                if (guiche === meuGuiche) {
+                    showCurrentCall(id, type || 'NORMAL', guiche);
+                }
+            } else {
+                list.appendChild(li);
+            }
+
+            if (list.children.length > 30) list.removeChild(list.lastChild);
+        }
+
+        // Mostra destaque da chamada atual
+        function showCurrentCall(num, type, guiche) {
+            const box = document.getElementById('current-call-box');
+            document.getElementById('current-num').innerText = num;
+            document.getElementById('current-info').innerText = `${type} | Guichê ${guiche}`;
+            box.style.display = 'block';
+
+            document.getElementById('attend-patient').style.display = 'flex';
+            toggleCallButtons(false);
+        }
+
+        function toggleCallButtons(enable) {
+            ['call-normal', 'call-prioritaria', 'call-dr-central', 'call-by-name'].forEach(id => {
+                document.getElementById(id).disabled = !enable;
+            });
+        }
+
+        // Listeners Socket.IO
+        socket.on('new_password', data => {
+            if (data.password && data.guiche) {
+                updateRecentCalls(data.password, data.guiche, data.queue_type, null, true);
+            }
+        });
+
+        socket.on('queue_updated', () => loadWaiting());
+
+        socket.on('no_passwords', (data) => {
+            const queueMsg = data.queue_type === 'TODAS' ? 'em qualquer fila' : `na fila ${data.queue_type}`;
+            openModal(`Não há senhas aguardando ${queueMsg}.`);
+        });
+
+        function openModal(msg) {
+            document.getElementById('modal-message').innerText = msg;
+            document.getElementById('alert-modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('alert-modal').style.display = 'none';
+        }
+
+        // Inicialização
+        loadHistory();
+        loadWaiting();
+    </script>
+    <div id="alert-modal" class="custom-modal" style="display: none;">
+        <div class="modal-content">
+            <i class="fas fa-info-circle modal-icon"></i>
+            <h3>Fila Vazia</h3>
+            <p id="modal-message">Não há senhas aguardando nesta categoria.</p>
+            <button onclick="closeModal()" class="btn-primary">Entendido</button>
+        </div>
+    </div>
+</body>
+
+</html>

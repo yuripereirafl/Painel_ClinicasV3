@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Totem de Senhas - {{ clinic.name }}</title>
+    <link rel="stylesheet" href="/static/styleTablet.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+    <div class="tablet-container" id="totem-container" data-clinic-id="{{ clinic.id }}">
+
+        <div class="header">
+            <div class="logo-container">
+                <img src="/static/logo.png" alt="Logo Central de Consultas" onerror="this.src='/logo.png'">
+            </div>
+            <p>Selecione o tipo de atendimento</p>
+        </div>
+
+        <div class="button-grid">
+            <!-- Prioritária -->
+            <button class="card-button btn-red red-shadow" onclick="generatePassword('PRIORITARIA')">
+                <div>
+                    <h2>Senha Prioritária</h2>
+                    <p>Idosos, gestantes e PCD</p>
+                </div>
+            </button>
+
+            <!-- Dr. Central -->
+            <button class="card-button btn-purple purple-shadow" onclick="generatePassword('DR_CENTRAL')">
+                <div>
+                    <h2>Senha Dr. Central</h2>
+                    <p>Assinantes Dr. Central</p>
+                </div>
+            </button>
+
+            <!-- Normal -->
+            <button class="card-button btn-blue blue-shadow" onclick="generatePassword('NORMAL')">
+                <div>
+                    <h2>Senha Normal</h2>
+                    <p>Atendimento geral</p>
+                </div>
+            </button>
+        </div>
+
+        <p class="footer-text">Toque no botão para retirar sua senha</p>
+        <div id="feedback"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // Inicializa Lucide Icons
+        lucide.createIcons();
+
+        var clinic_id = document.getElementById('totem-container').getAttribute('data-clinic-id');
+        var socket = io.connect('http://' + document.domain + ':' + location.port);
+
+        // Função para forçar tela cheia
+        function enterFullscreen() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen().catch(err => console.log("Erro ao entrar em fullscreen:", err));
+            } else if (elem.webkitRequestFullscreen) { /* Safari */
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) { /* IE11 */
+                elem.msRequestFullscreen();
+            }
+        }
+
+        // Tenta entrar em fullscreen em qualquer toque inicial na tela
+        document.addEventListener('click', enterFullscreen, { once: false });
+        document.addEventListener('touchstart', enterFullscreen, { once: false });
+
+        function generatePassword(type) {
+            // Garante que está em fullscreen ao interagir
+            enterFullscreen();
+
+            const feedback = document.getElementById('feedback');
+            feedback.innerText = "Gerando sua senha...";
+
+            // Desabilita botões temporariamente
+            const buttons = document.querySelectorAll('.card-button');
+            buttons.forEach(btn => btn.disabled = true);
+
+            socket.emit('generate_password', {
+                clinic_id: clinic_id,
+                queue_type: type
+            });
+
+            setTimeout(() => {
+                feedback.innerText = "Senha impressa com sucesso!";
+                setTimeout(() => {
+                    feedback.innerText = "";
+                    buttons.forEach(btn => btn.disabled = false);
+                }, 2000);
+            }, 800);
+        }
+    </script>
+</body>
+
+</html>

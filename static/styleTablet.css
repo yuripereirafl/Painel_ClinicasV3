@@ -1,0 +1,185 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+:root {
+    --bg-color: #f8fafc;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --red-card: #e53935;
+    --blue-card: #1e88e5;
+    --green-card: #43a047;
+    --purple-card: #8e24aa;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    color: var(--text-primary);
+}
+
+.tablet-container {
+    width: 100%;
+    max-width: 800px;
+    /* Reduzido largura máxima para alinhar melhor na vertical */
+    padding: 1rem 1.5rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    min-height: 98vh;
+    /* Tenta ocupar a altura quase toda */
+}
+
+.header {
+    margin-bottom: 2rem;
+}
+
+.logo-container {
+    width: 380px;
+    /* Ajuste leve no tamanho do logo */
+    height: auto;
+    margin: 0 auto 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.logo-container img {
+    max-width: 100%;
+    height: auto;
+}
+
+.header h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    margin: 0 0 0.5rem;
+    color: #1e293b;
+}
+
+.header p {
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.button-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    /* MUDANÇA: Agora 1 coluna (um embaixo do outro) */
+    gap: 1.5rem;
+    /* Ajuste no gap vertical */
+    flex-grow: 1;
+    /* Faz a grid ocupar o espaço disponível */
+    margin-bottom: 2rem;
+}
+
+.card-button {
+    border: none;
+    border-radius: 40px;
+    padding: 4.5rem 2rem;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    min-height: 250px;
+    /* Um pouco mais alto para preencher melhor a vertical */
+}
+
+.card-button:active {
+    transform: scale(0.98);
+}
+
+/* Alvo para o div que contém h2 e p */
+.card-button div {
+    text-align: center;
+}
+
+.card-button h2 {
+    font-size: 4.5rem;
+    /* Texto de senha gigante */
+    font-weight: 900;
+    margin: 0;
+    line-height: 1;
+}
+
+.card-button p {
+    font-size: 2rem;
+    /* Descrição bem maior */
+    opacity: 0.95;
+    margin: 1.5rem 0 0;
+    font-weight: 600;
+}
+
+/* Colors */
+.btn-red {
+    background-color: var(--red-card);
+}
+
+.btn-blue {
+    background-color: var(--blue-card);
+}
+
+.btn-green {
+    background-color: var(--green-card);
+}
+
+.btn-purple {
+    background-color: var(--purple-card);
+}
+
+.red-shadow {
+    box-shadow: 0 15px 35px rgba(229, 57, 53, 0.4);
+}
+
+.blue-shadow {
+    box-shadow: 0 15px 35px rgba(30, 136, 229, 0.4);
+}
+
+.green-shadow {
+    box-shadow: 0 10px 30px rgba(67, 160, 71, 0.3);
+}
+
+.purple-shadow {
+    box-shadow: 0 15px 35px rgba(142, 36, 170, 0.4);
+}
+
+.footer-text {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+#feedback {
+    font-weight: 700;
+    font-size: 1.5rem;
+    min-height: 2rem;
+    color: #1e88e5;
+    margin-bottom: 1rem;
+}
+
+/* Responsividade para celulares menores se necessário */
+@media (max-width: 600px) {
+    .card-button {
+        flex-direction: column;
+        padding: 2.5rem 1rem;
+        text-align: center;
+        justify-content: center;
+    }
+
+    .card-button .btn-text {
+        text-align: center;
+    }
+
+    .logo-container {
+        width: 250px;
+    }
+}

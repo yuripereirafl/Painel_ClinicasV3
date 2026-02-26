@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Atendentes</title>
+    <link rel="stylesheet" href="/static/styleadminAttendants.css">
+</head>
+<body>
+    <header>
+        <h1>Gerenciar Atendentes</h1>
+    </header>
+
+    <main>
+        <section>
+            <h2>Adicionar Novo Atendente</h2>
+            <form action="/admin/attendants" method="POST" class="attendant-form">
+                <div class="form-group">
+                    <label for="name">Nome do Atendente:</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="clinic_id">Clínica:</label>
+                    <select id="clinic_id" name="clinic_id" required>
+                        <option value="" disabled selected>Selecione uma Clínica</option>
+                        {% for clinic in clinics %}
+                        <option value="{{ clinic.id }}">{{ clinic.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <button type="submit" class="submit-button">Adicionar Atendente</button>
+            </form>
+        </section>
+
+        <section>
+            <h2>Atendentes Existentes</h2>
+            <ul class="attendant-list">
+                {% for attendant in attendants %}
+                <li class="attendant-item">
+                    <span>{{ attendant.name }}</span>
+                    <span>Clínica: {{ attendant.clinic.name }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="messages-section">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="messages-list">
+                    {% for category, message in messages %}
+                    <li class="message {{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% endwith %}
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Gerenciamento de Atendentes. Todos os direitos reservados.</p>
+    </footer>
+</body>
+</html>
