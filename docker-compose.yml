@@ -6,15 +6,9 @@ services:
     container_name: painel_clinica_web
     restart: always
     ports:
-      - "5000:5000"
-    environment:
-      - USE_SQLITE=true
-      - SECRET_KEY=clinica_secret_key
-      # Se quiser usar Postgres no futuro, mude USE_SQLITE para false e preencha abaixo:
-      - POSTGRES_USER=myuser
-      - POSTGRES_PASSWORD=mypassword
-      - POSTGRES_DB=mydatabase
-      - POSTGRES_HOST=db
+      - "${APP_PORT:-5000}:5000"
+    env_file:
+      - .env
     volumes:
       - .:/app
       - static_tts:/app/static/tts
