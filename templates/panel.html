@@ -113,15 +113,27 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.length > 0) {
+                        const queueMap = {
+                            'NORMAL': 'queue-normal',
+                            'PRIORITARIA': 'queue-prioritaria',
+                            'DR_CENTRAL': 'queue-dr_central'
+                        };
+
+                        // Atualiza o destaque principal (última chamada)
                         const last = data[0];
                         document.getElementById('current-password').innerHTML = last.number;
                         document.getElementById('current-guiche').innerHTML = last.guiche;
 
+                        const header = document.getElementById('header');
+                        header.className = ''; // Limpa
+                        header.classList.add(queueMap[last.queue_type] || 'queue-normal');
+
+                        // Atualiza a lista lateral com cores
                         const recentList = document.getElementById('recent-list');
                         recentList.innerHTML = '';
-                        // Pega os últimos 5 para a lateral (excluindo a principal que já está no topo se desejar, ou mantendo)
                         data.slice(0, 5).forEach(p => {
                             const newItem = document.createElement('li');
+                            newItem.className = queueMap[p.queue_type] || 'queue-normal';
                             newItem.innerHTML = `<span>${p.number}</span><span>${p.guiche}</span>`;
                             recentList.appendChild(newItem);
                         });

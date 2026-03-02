@@ -136,7 +136,8 @@ body {
 }
 
 .queue-normal h1,
-.queue-normal span {
+.queue-normal span,
+.queue-normal li span {
     color: #000000 !important;
 }
 
@@ -145,16 +146,19 @@ body {
 }
 
 .queue-prioritaria h1,
-.queue-prioritaria span {
+.queue-prioritaria span,
+.queue-prioritaria li span {
     color: #FFFFFF !important;
 }
 
 .queue-dr_central {
-    background-color: #800080 !important;
+    background-color: #000000 !important;
+    /* Cor preta conforme seu print */
 }
 
 .queue-dr_central h1,
-.queue-dr_central span {
+.queue-dr_central span,
+.queue-dr_central li span {
     color: #FFFFFF !important;
 }
 
