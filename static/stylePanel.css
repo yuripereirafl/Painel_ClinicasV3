@@ -38,7 +38,7 @@ body {
 }
 
 #sidebar {
-    width: 50%;
+    width: 35%;
     background-color: #003399;
     padding: 20px;
     display: flex;
@@ -101,33 +101,33 @@ body {
 
 #header {
     display: flex;
-    justify-content: space-evenly;
+    justify-content: center; /* Centraliza o grupo para não cortar nas bordas */
     align-items: center;
     background-color: #000;
     color: var(--layout-text-color);
-    padding: 4.5%;
-    font-size: 24px;
+    padding: 30px 20px; /* Barra preta mais alta e imponente */
     text-align: center;
+    gap: 80px; /* Espaço seguro entre Senha e Guichê */
 }
 
 .header-item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 20px;
     text-align: center;
 }
 
 .header-item span {
-    font-size: 60px;
+    font-size: 50px; /* Rótulo menor dá mais destaque ao número */
+    font-weight: bold;
 }
 
 .header-item h1 {
     margin: 0;
-    font-size: 100px;
+    font-size: 280px; /* NÚMERO GIGANTE E BEM VISÍVEL */
     color: #ffffff;
-    /* Mantém a cor branca */
-    font-weight: bold;
-    /* Deixa o texto mais espesso */
+    font-weight: 900;
+    line-height: 1;
 }
 
 /* Cores das Filas */
