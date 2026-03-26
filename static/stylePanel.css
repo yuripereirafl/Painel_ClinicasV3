@@ -38,7 +38,7 @@ body {
 }
 
 #sidebar {
-    width: 35%;
+    width: 28%;
     background-color: #003399;
     padding: 20px;
     display: flex;
@@ -105,7 +105,7 @@ body {
     align-items: center;
     background-color: #000;
     color: var(--layout-text-color);
-    padding: 30px 20px; /* Barra preta mais alta e imponente */
+    padding: 15px 20px; /* Reduz a altura da barra */
     text-align: center;
     gap: 80px; /* Espaço seguro entre Senha e Guichê */
 }
@@ -118,13 +118,13 @@ body {
 }
 
 .header-item span {
-    font-size: 50px; /* Rótulo menor dá mais destaque ao número */
+    font-size: 40px; /* Rótulo menor dá mais destaque ao número */
     font-weight: bold;
 }
 
 .header-item h1 {
     margin: 0;
-    font-size: 280px; /* NÚMERO GIGANTE E BEM VISÍVEL */
+    font-size: 210px; /* NÚMERO GIGANTE E BEM VISÍVEL */
     color: #ffffff;
     font-weight: 900;
     line-height: 1;

@@ -9,6 +9,10 @@ import glob
 import threading
 from escpos.printer import Network
 
+# Lock para evitar que múltiplas threads tentem imprimir ao mesmo tempo
+# e sobrescrevam o arquivo temp_ticket.png simultaneamente.
+print_lock = threading.Lock()
+
 app = Flask(__name__)
 
 # Configuração do Banco de Dados via Variáveis de Ambiente
@@ -168,26 +172,38 @@ def print_ticket(clinic_name, queue_name, password_number, queue_tag="N"):
             draw.text(((width - w_m) // 2, y_cursor), msg, font=f_medium, fill=0)
             y_cursor += 60
 
-            # Corta a imagem no tamanho final e converte para B&W
-            final_image = image.crop((0, 0, width, y_cursor + 20)).convert('1')
-            final_image.save("temp_ticket.png")
+            # 10. Bloqueio para garantir que apenas uma impressão ocorra por vez
+            with print_lock:
+                # Salva a imagem
+                image_path = f"temp_ticket_{password_number}.png"
+                final_image = image.crop((0, 0, width, y_cursor + 20)).convert('1')
+                final_image.save(image_path)
 
-            # Envia para a impressora
-            p = Network(PRINTER_IP, timeout=10)
-            p.hw("init")
-            p.image("temp_ticket.png")
-            p.ln(2)
-            p._raw(b'\x1bm') # Corte manual
-            print(f"Ticket {password_number} (IMAGEM) enviado com sucesso.")
+                print(f"Tentando enviar ticket {password_number} para a impressora {PRINTER_IP}...")
+                
+                # Envia para a impressora
+                p = Network(PRINTER_IP, timeout=10)
+                p.hw("init")
+                p.image(image_path)
+                p.ln(2)
+                p.cut() # Usando o comando de corte padrão da biblioteca
+                p.close()
+                
+                print(f"Ticket {password_number} (IMAGEM) enviado com sucesso para {PRINTER_IP}.")
+                
+                # Remove o arquivo temporário
+                if os.path.exists(image_path):
+                    os.remove(image_path)
 
         except Exception as e:
-            print(f"ERRO DE IMPRESSÃO GRÁFICA: {e}")
+            print(f"ERRO DE IMPRESSÃO GRÁFICA (Ticket {password_number}): {e}")
         finally:
             if p:
                 try: p.close()
                 except: pass
 
-    threading.Thread(target=task).start()
+    # Usando socketio.start_background_task para melhor compatibilidade com eventlet
+    socketio.start_background_task(task)
 
 # Endpoint para configurar a senha inicial
 @app.route('/set_initial_password', methods=['POST'])
@@ -321,6 +337,10 @@ def generate_password(data):
 
     if not clinic_id:
         return
+
+    # Log do IP para identificar a origem
+    ip_origem = request.remote_addr if request else "Desconhecido"
+    print(f"Solicitação de senha recebida do IP: {ip_origem} para Clínica: {clinic_id}")
 
     clinic_id = int(clinic_id)
     clinic = Clinic.query.get(clinic_id)
