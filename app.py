@@ -187,15 +187,11 @@ def print_ticket(clinic_name, queue_name, password_number, queue_tag="N"):
                 p.image(image_path)
                 p.ln(5) # Pulo físico do papel até a altura da lâmina
                 
-                # Dispara comandos de corte brutos para as 3 linguagens que a Bematech fala
-                p._raw(b'\x1B\x77')     # 1. Idioma Nativo Bematech (ESC/BEMA)
-                p._raw(b'\x1d\x56\x00') # 2. Padrão ESC/POS genérico (Corte total)
-                p._raw(b'\x1b\x6d')     # 3. Padrão ESC/POS genérico (Corte parcial)
-                
+                # Mantém apenas um comando de corte (Corte Parcial) para evitar corte duplo
                 try:
-                    p.cut()             # Fallback final pela própria biblioteca
+                    p.cut(mode='PART')
                 except:
-                    pass
+                    p.cut()
                 p.close()
                 
                 print(f"Ticket {password_number} (IMAGEM) enviado com sucesso para {PRINTER_IP}.")
