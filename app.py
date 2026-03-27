@@ -185,13 +185,10 @@ def print_ticket(clinic_name, queue_name, password_number, queue_tag="N"):
                 p = Network(PRINTER_IP, timeout=10)
                 p.hw("init")
                 p.image(image_path)
-                p.ln(5) # Pulo físico do papel até a altura da lâmina
-                
-                # Mantém apenas um comando de corte (Corte Parcial) para evitar corte duplo
-                try:
-                    p.cut(mode='PART')
-                except:
-                    p.cut()
+                p.ln(5) # Espaço vital da lâmina
+
+                # Usaremos puramente um pulso HEX simples para acionar a alavanca da lâmina 1 vez
+                p._raw(b'\x1b\x6d') # Comando genérico puro de Parcial (evitar falha da lib)
                 p.close()
                 
                 print(f"Ticket {password_number} (IMAGEM) enviado com sucesso para {PRINTER_IP}.")
