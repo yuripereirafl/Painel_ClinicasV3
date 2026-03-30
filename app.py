@@ -1,13 +1,17 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_socketio import SocketIO, emit, join_room
 from models import db, Password, Clinic, Attendant
-from datetime import datetime, timezone
+from datetime import datetime
+import pytz
 from gtts import gTTS
 import os
 import time
 import glob
 import threading
 from escpos.printer import Network
+
+
+SAO_PAULO = pytz.timezone('America/Sao_Paulo')
 
 # Lock para evitar que múltiplas threads tentem imprimir ao mesmo tempo
 # e sobrescrevam o arquivo temp_ticket.png simultaneamente.
@@ -162,7 +166,7 @@ def print_ticket(clinic_name, queue_name, password_number, queue_tag="N"):
             y_cursor += 30
 
             # 9. Data e Rodapé
-            data_txt = f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            data_txt = f"Data: {datetime.now(SAO_PAULO).strftime('%d/%m/%Y %H:%M')}"
             w_d = draw.textlength(data_txt, font=f_medium)
             draw.text(((width - w_d) // 2, y_cursor), data_txt, font=f_medium, fill=0)
             y_cursor += 40
@@ -225,7 +229,7 @@ def set_initial_password():
 
 def get_today_passwords():
     """Retorna as senhas geradas hoje."""
-    today = datetime.now().date()
+    today = datetime.now(SAO_PAULO).date()
     return Password.query.filter_by(date=today).order_by(Password.number).all()
 
 def get_last_password_number(clinic_id):
@@ -290,7 +294,7 @@ def attendant(clinic_id):
 @app.route('/api/clinic/<int:clinic_id>/waiting')
 def get_waiting_passwords(clinic_id):
     """Retorna as senhas que estão aguardando hoje para a clínica."""
-    today = datetime.now().date()
+    today = datetime.now(SAO_PAULO).date()
     passwords = Password.query.filter_by(
         clinic_id=clinic_id,
         date=today,
@@ -308,7 +312,7 @@ def get_waiting_passwords(clinic_id):
 @app.route('/api/clinic/<int:clinic_id>/called_today')
 def get_called_today(clinic_id):
     """Retorna as últimas senhas chamadas hoje para a clínica."""
-    today = datetime.now().date()
+    today = datetime.now(SAO_PAULO).date()
     passwords = Password.query.filter_by(
         clinic_id=clinic_id,
         date=today,
@@ -348,7 +352,7 @@ def generate_password(data):
     clinic = Clinic.query.get(clinic_id)
     
     # Obtém a data local do servidor (mais intuitivo para clínicas locais)
-    today = datetime.now().date()
+    today = datetime.now(SAO_PAULO).date()
     
     # Busca a última senha gerada para esta clínica (independente do dia)
     last_password = Password.query.filter_by(clinic_id=clinic_id).order_by(Password.id.desc()).first()
@@ -375,7 +379,7 @@ def generate_password(data):
         clinic_id=clinic_id
     )
     if status == 'CHAMADO':
-        password.called_at = datetime.now()
+        password.called_at = datetime.now(SAO_PAULO)
 
     db.session.add(password)
     db.session.commit()
@@ -416,7 +420,7 @@ def call_any(data):
     if not clinic_id or not guiche:
         return
 
-    today = datetime.now().date()
+    today = datetime.now(SAO_PAULO).date()
     # Busca a próxima senha aguardando com o menor ID (ordem de chegada rigorosa)
     next_password = Password.query.filter_by(
         clinic_id=clinic_id, 
@@ -427,7 +431,7 @@ def call_any(data):
     if next_password:
         next_password.status = 'CHAMADO'
         next_password.guiche = guiche
-        next_password.called_at = datetime.now()
+        next_password.called_at = datetime.now(SAO_PAULO)
         db.session.commit()
 
         queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D'}
@@ -455,7 +459,7 @@ def call_next(data):
         return
 
     # Busca a próxima senha aguardando para este tipo de fila
-    today = datetime.now().date()
+    today = datetime.now(SAO_PAULO).date()
     next_password = Password.query.filter_by(
         clinic_id=clinic_id, 
         queue_type=queue_type, 
@@ -466,7 +470,7 @@ def call_next(data):
     if next_password:
         next_password.status = 'CHAMADO'
         next_password.guiche = guiche
-        next_password.called_at = datetime.now()
+        next_password.called_at = datetime.now(SAO_PAULO)
         db.session.commit()
 
         queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D'}
