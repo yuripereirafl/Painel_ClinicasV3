@@ -301,7 +301,7 @@ def get_waiting_passwords(clinic_id):
         status='AGUARDANDO'
     ).order_by(Password.id.asc()).all()
     
-    queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D'}
+    queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
     
     return jsonify([{
         'number': f"{queue_tags.get(p.queue_type, 'N')}{p.number:02d}",
@@ -319,7 +319,7 @@ def get_called_today(clinic_id):
         status='CHAMADO'
     ).order_by(Password.called_at.desc()).limit(10).all()
     
-    queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D'}
+    queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
     
     return jsonify([{
         'number': f"{queue_tags.get(p.queue_type, 'N')}{p.number:02d}",
@@ -389,18 +389,20 @@ def generate_password(data):
         queue_names = {
             'NORMAL': 'Normal',
             'PRIORITARIA': 'Prioritária',
-            'DR_CENTRAL': 'DR Central'
+            'DR_CENTRAL': 'DR Central',
+            'ODONTO': 'Odonto'
         }
         queue_tags = {
             'NORMAL': 'N',
             'PRIORITARIA': 'P',
-            'DR_CENTRAL': 'D'
+            'DR_CENTRAL': 'D',
+            'ODONTO': 'O'
         }
         print_ticket(clinic.name, queue_names.get(queue_type, 'Normal'), new_password_number, queue_tags.get(queue_type, 'N'))
 
     # Emitir evento se já for chamado
     if status == 'CHAMADO':
-        queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D'}
+        queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
         prefix = queue_tags.get(queue_type, 'N')
         emit('new_password', {
             'password': f"{prefix}{new_password_number:02d}", 
@@ -434,7 +436,7 @@ def call_any(data):
         next_password.called_at = datetime.now(SAO_PAULO)
         db.session.commit()
 
-        queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D'}
+        queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
         prefix = queue_tags.get(next_password.queue_type, 'N')
 
         emit('new_password', {
@@ -473,7 +475,7 @@ def call_next(data):
         next_password.called_at = datetime.now(SAO_PAULO)
         db.session.commit()
 
-        queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D'}
+        queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
         prefix = queue_tags.get(queue_type, 'N')
 
         emit('new_password', {

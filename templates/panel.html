@@ -115,7 +115,8 @@
                         const queueMap = {
                             'NORMAL': 'queue-normal',
                             'PRIORITARIA': 'queue-prioritaria',
-                            'DR_CENTRAL': 'queue-dr_central'
+                            'DR_CENTRAL': 'queue-dr_central',
+                            'ODONTO': 'queue-odonto'
                         };
                         const last = data[0];
                         document.getElementById('current-password').innerHTML = last.number;
@@ -164,7 +165,8 @@
             const queueMap = {
                 'NORMAL': { class: 'queue-normal' },
                 'PRIORITARIA': { class: 'queue-prioritaria' },
-                'DR_CENTRAL': { class: 'queue-dr_central' }
+                'DR_CENTRAL': { class: 'queue-dr_central' },
+                'ODONTO': { class: 'queue-odonto' }
             };
 
             const queueInfo = queueMap[data.queue_type] || queueMap['NORMAL'];

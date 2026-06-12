@@ -161,6 +161,16 @@ body {
     color: #FFFFFF !important;
 }
 
+.queue-odonto {
+    background-color: #008000 !important; /* Verde Odonto */
+}
+
+.queue-odonto h1,
+.queue-odonto span,
+.queue-odonto li span {
+    color: #FFFFFF !important;
+}
+
 #queue-name-display {
     font-size: 40px;
     font-weight: bold;

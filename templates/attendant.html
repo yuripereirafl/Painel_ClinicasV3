@@ -67,6 +67,9 @@
                 <button id="call-normal" class="btn-call normal">
                     <i class="fas fa-user"></i> Próxima Normal
                 </button>
+                <button id="call-odonto" class="btn-call odonto">
+                    <i class="fas fa-tooth"></i> Próxima Odonto
+                </button>
                 <button id="attend-patient" class="btn-success" style="display: none;">
                     <i class="fas fa-check-circle"></i> Concluir Atendimento
                 </button>
@@ -101,6 +104,7 @@
         document.getElementById('call-normal').onclick = () => callNext('NORMAL');
         document.getElementById('call-prioritaria').onclick = () => callNext('PRIORITARIA');
         document.getElementById('call-dr-central').onclick = () => callNext('DR_CENTRAL');
+        document.getElementById('call-odonto').onclick = () => callNext('ODONTO');
 
         function callNext(type) {
             const guiche = document.getElementById('guiche-select').value;
@@ -213,7 +217,7 @@
         }
 
         function toggleCallButtons(enable) {
-            ['call-normal', 'call-prioritaria', 'call-dr-central', 'call-by-name'].forEach(id => {
+            ['call-normal', 'call-prioritaria', 'call-dr-central', 'call-odonto', 'call-by-name'].forEach(id => {
                 document.getElementById(id).disabled = !enable;
             });
         }
