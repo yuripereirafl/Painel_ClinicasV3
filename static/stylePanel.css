@@ -107,24 +107,24 @@ body {
     color: var(--layout-text-color);
     padding: 15px 20px; /* Reduz a altura da barra */
     text-align: center;
-    gap: 80px; /* Espaço seguro entre Senha e Guichê */
+    gap: clamp(30px, 5vw, 80px); /* Espaço seguro entre Senha e Guichê */
 }
 
 .header-item {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: clamp(10px, 2vw, 20px);
     text-align: center;
 }
 
 .header-item span {
-    font-size: 40px; /* Rótulo menor dá mais destaque ao número */
+    font-size: clamp(24px, 3vw, 40px); /* Rótulo menor dá mais destaque ao número */
     font-weight: bold;
 }
 
 .header-item h1 {
     margin: 0;
-    font-size: 210px; /* NÚMERO GIGANTE E BEM VISÍVEL */
+    font-size: clamp(120px, 12vw, 210px); /* NÚMERO GIGANTE E BEM VISÍVEL */
     color: #ffffff;
     font-weight: 900;
     line-height: 1;
