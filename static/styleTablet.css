@@ -5,9 +5,9 @@
     --text-primary: #1e293b;
     --text-secondary: #64748b;
     --red-card: #e53935;
-    --blue-card: #1e88e5;
-    --green-card: #43a047;
-    --purple-card: #8e24aa;
+    --blue-card: #03588C;
+    --green-card: #2abcb7;
+    --purple-card: #684a93;
 }
 
 body {
@@ -133,15 +133,15 @@ body {
 }
 
 .blue-shadow {
-    box-shadow: 0 15px 35px rgba(30, 136, 229, 0.4);
+    box-shadow: 0 15px 35px rgba(3, 88, 140, 0.4);
 }
 
 .green-shadow {
-    box-shadow: 0 10px 30px rgba(67, 160, 71, 0.3);
+    box-shadow: 0 10px 30px rgba(42, 188, 183, 0.3);
 }
 
 .purple-shadow {
-    box-shadow: 0 15px 35px rgba(142, 36, 170, 0.4);
+    box-shadow: 0 15px 35px rgba(104, 74, 147, 0.4);
 }
 
 .footer-text {

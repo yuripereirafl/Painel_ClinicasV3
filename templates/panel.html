@@ -1,76 +1,95 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel de Senhas</title>
-    <link rel="stylesheet" href="/static/stylePanel.css?v=2.3">
+    <link rel="stylesheet" href="/static/stylePanel.css?v=20.0">
 </head>
-
 <body>
     <div id="panel-container">
-        <div id="sidebar">
-            <img id="clinic-logo" src="/static/logoo.png" alt="Logo da Clínica">
-            <h3>Últimas Senhas Chamadas</h3>
-            <div id="info-box">
-                <span>Senha</span>
-                <span>Guichê</span>
-            </div>
-            <ul id="recent-list"></ul>
-        </div>
+        <!-- Seção Superior -->
+        <div id="upper-section">
+            <!-- Blobs de Fundo -->
+            <div class="blob blob-top-left"></div>
+            <div class="blob blob-left-edge"></div>
+            <div class="blob blob-right-edge"></div>
 
-        <div id="main-content">
-            <div id="header">
-                <div class="header-item">
-                    <span>Senha:</span>
-                    <h1 id="current-password">0</h1>
+            <!-- Cabeçalho: Logo e Data/Hora -->
+            <div id="header-top">
+                <div id="logo-section">
+                    <img id="clinic-logo" src="/static/logo_colored.png" alt="Logo da Clínica">
+                    <div id="divider-vertical"></div>
                 </div>
-                <div class="header-item">
-                    <span>Guichê:</span>
-                    <h1 id="current-guiche">0</h1>
-                </div>
-                <div id="queue-name-display"></div>
-            </div>
-
-            <div id="video-container">
-                <video id="clinic-video" controls autoplay muted loop>
-                    <source src="/static/video2025.mp4" type="video/mp4">
-                    Seu navegador não suporta vídeos HTML5.
-                </video>
-
-                <!-- Modal centralizado sobre o vídeo -->
-                <div id="name-modal" class="modal" style="display: none;">
-                    <div class="modal-content">
-                        <h3>Paciente:</h3>
-                        <h1 id="modal-name">Nome do Paciente</h1>
-                        <h3>Guichê:</h3>
-                        <h2 id="modal-guiche">1</h2>
+                <div id="datetime-section">
+                    <div class="datetime-item">
+                        <!-- Ícone de Calendário -->
+                        <svg viewBox="0 0 24 24">
+                            <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/>
+                        </svg>
+                        <span id="current-date">--/--/----</span>
                     </div>
+                    <div id="divider-datetime">|</div>
+                    <div class="datetime-item">
+                        <!-- Ícone de Relógio -->
+                        <svg viewBox="0 0 24 24">
+                            <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                        </svg>
+                        <span id="current-time">--:--</span>
+                    </div>
+                    <div id="status-dot" class="status-connected"></div>
+                </div>
+            </div>
+
+            <!-- Centro: Chamada Principal -->
+            <div id="main-call-area">
+                <div class="call-left">
+                    <h1 id="current-password" class="queue-normal">--</h1>
+                </div>
+                <div class="call-divider"></div>
+                <div class="call-right">
+                    <span class="label-dirija">DIRIJA-SE AO</span>
+                    <h2 class="label-guiche">GUICHÊ <span id="current-guiche">--</span></h2>
+                    <div class="underline-gold"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Data, Hora e Unidade fora do vídeo, no canto inferior esquerdo -->
-        <div id="footer">
-            <span id="current-date"></span> | <span id="current-time"></span> | <span id="current-unit">Unidade {{
-                clinic.name }}</span>
+        <!-- Seção Inferior: Histórico de Chamadas Recentes -->
+        <div id="bottom-section">
+            <div id="recent-header">
+                <h2>CHAMADAS RECENTES</h2>
+            </div>
+            <div id="recent-divider"></div>
+            <ul id="recent-list">
+                <!-- Inserido dinamicamente via JS (até 6 elementos) -->
+            </ul>
+        </div>
+
+        <!-- Modal de Chamada por Nome (TTS) -->
+        <div id="name-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h3>Paciente:</h3>
+                <h1 id="modal-name">Nome do Paciente</h1>
+                <h3>Guichê:</h3>
+                <h2 id="modal-guiche">1</h2>
+            </div>
         </div>
     </div>
 
-    <!-- Elementos de Áudio Ocultos -->
+    <!-- Alerta Sonoro Oculto -->
     <audio id="sound-alert" src="/static/som_chamada.mp3" preload="auto" style="display:none;"></audio>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
         function openFullscreen() {
-            const panelContainer = document.getElementById('panel-container');
-            if (panelContainer.requestFullscreen) {
-                panelContainer.requestFullscreen();
-            } else if (panelContainer.webkitRequestFullscreen) {
-                panelContainer.webkitRequestFullscreen();
-            } else if (panelContainer.msRequestFullscreen) {
-                panelContainer.msRequestFullscreen();
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) {
+                elem.msRequestFullscreen();
             }
         }
 
@@ -82,7 +101,7 @@
         var clinic_id = {{ clinic.id | tojson }};
         socket.emit('join', { 'clinic_id': clinic_id });
 
-        // --- Lógica de Áudio Robusta para HDMI/Splitter ---
+        // --- Lógica de Áudio ---
         function playNotificationSound() {
             const playOnce = (delay = 0) => {
                 setTimeout(() => {
@@ -91,22 +110,22 @@
                 }, delay);
             };
 
-            // Wake-up signal para HDMI Splitter (Mantido para garantir que o canal abra)
+            // Wake-up para saídas HDMI
             try {
                 const context = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = context.createOscillator();
                 const gain = context.createGain();
-                gain.gain.value = 0.001; // Ainda mais baixo para ser imperceptível
+                gain.gain.value = 0.001;
                 oscillator.connect(gain);
                 gain.connect(context.destination);
                 oscillator.start(0);
                 oscillator.stop(0.1);
             } catch (e) {}
 
-            // Agora toca apenas 1 vez conforme solicitado
             playOnce(0);
         }
 
+        // --- Carregar Estado Inicial ---
         function loadCurrentState() {
             fetch(`/api/clinic/${clinic_id}/called_today`)
                 .then(res => res.json())
@@ -118,20 +137,23 @@
                             'DR_CENTRAL': 'queue-dr_central',
                             'ODONTO': 'queue-odonto'
                         };
+                        
+                        // O primeiro é o atual
                         const last = data[0];
-                        document.getElementById('current-password').innerHTML = last.number;
+                        const pwdEl = document.getElementById('current-password');
+                        pwdEl.innerHTML = last.number;
+                        pwdEl.className = '';
+                        pwdEl.classList.add(queueMap[last.queue_type] || 'queue-normal');
+                        
                         document.getElementById('current-guiche').innerHTML = last.guiche;
 
-                        const header = document.getElementById('header');
-                        header.className = '';
-                        header.classList.add(queueMap[last.queue_type] || 'queue-normal');
-
+                        // Os próximos 6 são o histórico
                         const recentList = document.getElementById('recent-list');
                         recentList.innerHTML = '';
-                        data.slice(0, 5).forEach(p => {
+                        data.slice(1, 7).forEach(p => {
                             const newItem = document.createElement('li');
-                            newItem.className = queueMap[p.queue_type] || 'queue-normal';
-                            newItem.innerHTML = `<span>${p.number}</span><span>${p.guiche}</span>`;
+                            newItem.className = `recent-item ${queueMap[p.queue_type] || 'queue-normal'}`;
+                            newItem.innerHTML = `<span class="recent-pass">${p.number}</span><span class="recent-guiche">Guichê ${p.guiche}</span>`;
                             recentList.appendChild(newItem);
                         });
                     }
@@ -150,53 +172,82 @@
         }
 
         function updateStatus(connected) {
-            const footer = document.getElementById('footer');
-            footer.style.borderLeft = connected ? "5px solid #28a745" : "5px solid #dc3545";
+            const dot = document.getElementById('status-dot');
+            if (dot) {
+                dot.className = connected ? 'status-connected' : 'status-disconnected';
+            }
         }
 
-        // EVENTO: Nova Senha (O som toca APENAS aqui)
+        // --- EVENTO: Nova Senha ---
         socket.on('new_password', function (data) {
-            document.getElementById('current-password').innerHTML = data.password;
-            document.getElementById('current-guiche').innerHTML = data.guiche;
-
-            const header = document.getElementById('header');
-            header.className = ''; 
-
             const queueMap = {
-                'NORMAL': { class: 'queue-normal' },
-                'PRIORITARIA': { class: 'queue-prioritaria' },
-                'DR_CENTRAL': { class: 'queue-dr_central' },
-                'ODONTO': { class: 'queue-odonto' }
+                'NORMAL': 'queue-normal',
+                'PRIORITARIA': 'queue-prioritaria',
+                'DR_CENTRAL': 'queue-dr_central',
+                'ODONTO': 'queue-odonto'
             };
 
-            const queueInfo = queueMap[data.queue_type] || queueMap['NORMAL'];
-            header.classList.add(queueInfo.class);
+            const currentPassEl = document.getElementById('current-password');
+            const prevPassword = currentPassEl.innerHTML;
+            const prevGuiche = document.getElementById('current-guiche').innerHTML;
+            
+            // Determinar o tipo da fila anterior com base na classe css ativa
+            let prevQueueType = 'NORMAL';
+            for (let q in queueMap) {
+                if (currentPassEl.classList.contains(queueMap[q])) {
+                    prevQueueType = q;
+                    break;
+                }
+            }
+
+            // Atualiza a tela com a nova chamada
+            currentPassEl.innerHTML = data.password;
+            currentPassEl.className = '';
+            currentPassEl.classList.add(queueMap[data.queue_type] || 'queue-normal');
+            
+            document.getElementById('current-guiche').innerHTML = data.guiche;
 
             // Dispara o barulho da senha
             playNotificationSound();
 
-            var recentList = document.getElementById('recent-list');
-            var newItem = document.createElement('li');
-            newItem.className = queueInfo.class;
-            newItem.innerHTML = `<span>${data.password}</span><span>${data.guiche}</span>`;
-            recentList.insertBefore(newItem, recentList.firstChild);
+            // Adiciona a senha anterior ao histórico (se for válida)
+            if (prevPassword && prevPassword !== '--' && prevPassword !== '0') {
+                const recentList = document.getElementById('recent-list');
+                const newItem = document.createElement('li');
+                newItem.className = `recent-item ${queueMap[prevQueueType] || 'queue-normal'}`;
+                newItem.innerHTML = `<span class="recent-pass">${prevPassword}</span><span class="recent-guiche">Guichê ${prevGuiche}</span>`;
+                
+                recentList.insertBefore(newItem, recentList.firstChild);
 
-            if (recentList.children.length > 5) {
-                recentList.removeChild(recentList.lastChild);
+                // Limita a 6 itens no histórico
+                if (recentList.children.length > 6) {
+                    recentList.removeChild(recentList.lastChild);
+                }
             }
         });
 
+        // --- Atualizar Data e Hora ---
         function updateDateTime() {
             var now = new Date();
-            document.getElementById('current-date').innerHTML = now.toLocaleDateString();
-            document.getElementById('current-time').innerHTML = now.toLocaleTimeString();
+            
+            // Data formatada (DD/MM/AAAA)
+            const day = String(now.getDate()).padStart(2, '0');
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const year = now.getFullYear();
+            document.getElementById('current-date').innerHTML = `${day}/${month}/${year}`;
+            
+            // Hora formatada (HH:MM)
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('current-time').innerHTML = `${hours}:${minutes}`;
+            
             checkDailyReload(now);
         }
 
         setInterval(updateDateTime, 1000);
         updateDateTime();
 
-        // EVENTO: Chamada pelo Nome (Mantém apenas o TTS, sem o barulho da senha)
+        // --- EVENTO: Chamada pelo Nome (TTS) ---
         socket.on('name_called', function (data) {
             if (data && data.name && data.guiche) {
                 const modal = document.getElementById('name-modal');
@@ -244,16 +295,12 @@
             }, 30000);
         });
 
-        // Desbloqueia áudio no primeiro clique
+        // Habilita som e tela cheia no primeiro clique
         document.body.onclick = function() {
             openFullscreen();
             const silent = new Audio();
             silent.play().catch(() => {});
         };
     </script>
-
-
-    </script>
 </body>
-
 </html>

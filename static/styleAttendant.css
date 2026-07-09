@@ -263,22 +263,22 @@ button i {
 }
 
 .btn-call.normal {
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, #0476bd 0%, #03588c 100%);
     color: white;
 }
 
 .btn-call.prioritaria {
-    background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+    background: linear-gradient(135deg, #ff5252 0%, #e53935 100%);
     color: white;
 }
 
 .btn-call.dr-central {
-    background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+    background: linear-gradient(135deg, #825fae 0%, #684a93 100%);
     color: white;
 }
 
 .btn-call.odonto {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: linear-gradient(135deg, #3fd0cb 0%, #2abcb7 100%);
     color: white;
 }
 
@@ -376,23 +376,23 @@ li:hover {
 }
 
 .badge-normal {
-    background: #e0f2fe;
-    color: #0369a1;
+    background: rgba(3, 88, 140, 0.1);
+    color: #03588C;
 }
 
 .badge-prioritaria {
-    background: #fee2e2;
-    color: #b91c1c;
+    background: rgba(229, 57, 53, 0.1);
+    color: #e53935;
 }
 
 .badge-dr_central {
-    background: #f3e8ff;
-    color: #7e22ce;
+    background: rgba(104, 74, 147, 0.1);
+    color: #684a93;
 }
 
 .badge-odonto {
-    background: #dcfce7;
-    color: #15803d;
+    background: rgba(42, 188, 183, 0.1);
+    color: #2abcb7;
 }
 
 .badge-guiche {

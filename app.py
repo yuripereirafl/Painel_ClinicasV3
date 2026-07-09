@@ -9,7 +9,10 @@ import time
 import glob
 import threading
 from escpos.printer import Network
+from dotenv import load_dotenv
 
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
 
 SAO_PAULO = pytz.timezone('America/Sao_Paulo')
 
@@ -36,7 +39,7 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'mysecretkey')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode=None)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # Dicionário para armazenar a senha inicial por clínica
 initial_passwords = {}
@@ -572,4 +575,4 @@ if __name__ == '__main__':
             db.session.add(default_clinic)
             db.session.commit()
             print("Clínica padrão criada para testes.")
-    socketio.run(app, host="0.0.0.0", port=APP_PORT, debug=True)
+    socketio.run(app, host="0.0.0.0", port=APP_PORT, debug=True, allow_unsafe_werkzeug=True)

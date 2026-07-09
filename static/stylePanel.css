@@ -1,13 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
 
 :root {
-    --layout-background-color: #ffffff;
-    --layout-primary-color: #327ae7;
-    --layout-secondary-color: #242424;
-    --layout-text-color: #FFFFFF;
-    --sidebar-background: #003399;
-    --main-background: #003366;
-    --footer-background: #003399;
+    --color-blue: #3E8FF7;  /* Azul Claro */
+    --color-dark: #073A7A;  /* Azul Escuro */
+    --color-gold: #F4B400;  /* Amarelo */
+    --bg-bottom: #073A7A;   /* Azul Escuro */
+    --bg-light: #F7F9FC;    /* Cinza muito claro */
 }
 
 * {
@@ -18,288 +16,300 @@
 
 body {
     font-family: "Poppins", sans-serif;
-    background-color: var(--main-background);
+    background-color: #0c0d0f; /* Moldura de TV/Monitor escura para contraste */
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-    overflow: hidden;
+    padding: 0.8vh 0.8vw; /* Cria margem fina simulando a borda física da TV */
 }
 
 #panel-container {
     display: flex;
-    width: 100vw;
-    height: 100vh;
-    background-color: #003366;
-    color: white;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-light);
     position: relative;
-    /* Permite que os elementos sejam posicionados dentro do container */
-
+    border: 1.2vh solid var(--color-dark); /* Moldura azul escura corporativa */
+    border-radius: 3.2vh; /* Cantos arredondados visíveis da moldura */
+    overflow: hidden; /* Garante que os cantos arredondados cortem os fundos internos */
 }
 
-#sidebar {
-    width: 28%;
-    background-color: #003399;
-    padding: 20px;
+/* --- Seção Superior --- */
+#upper-section {
+    height: 72vh;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    max-height: 100vh;
+    position: relative;
+    background-color: var(--bg-light); /* Cinza muito claro limpo */
     overflow: hidden;
+}
+
+/* Blobs Decorativos Suaves (Somente manchas decorativas opacas e sutis do layout original) */
+.blob {
+    position: absolute;
+    background-color: rgba(62, 143, 247, 0.07); /* Tom azul claro extremamente sutil */
+    z-index: 1;
+    pointer-events: none;
+}
+
+.blob-left-edge {
+    left: -8vh;
+    top: 35%;
+    width: 18vh;
+    height: 30vh;
+    border-radius: 0 100% 100% 0;
+}
+
+.blob-right-edge {
+    right: -10vh;
+    top: 28%;
+    width: 20vh;
+    height: 36vh;
+    border-radius: 100% 0 0 100%;
+}
+
+/* Cabeçalho: Logo, Data e Hora */
+#header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 2.5vh 2vw 0 2vw; /* Empurra os elementos para os cantos esquerdo e direito */
+    z-index: 10;
+    min-height: 18vh; /* Leve aumento para comportar o logo maior */
+}
+
+#logo-section {
+    display: flex;
+    align-items: center;
+    gap: 1vw;
+    position: relative;
 }
 
 #clinic-logo {
-    width: 80%;
-    margin-bottom: 20px;
+    height: 13.5vh; /* Logo significativamente maior */
+    width: auto;
+    object-fit: contain;
+    z-index: 10;
 }
 
-#info-box {
+#divider-vertical {
+    width: 2px;
+    height: 8.5vh; /* Ajuste proporcional ao logo maior */
+    background-color: #d0dbed;
+    margin-left: 2.5vw;
+    z-index: 10;
+}
+
+#datetime-section {
     display: flex;
-    justify-content: space-around;
-    width: 100%;
-    padding: 20px;
-    background-color: var(--sidebar-background);
-    border-bottom: 2px solid #001F5C;
-    color: var(--layout-text-color);
-    font-weight: bold;
-    font-size: 1.2em;
+    align-items: center;
+    gap: 1.5vw;
+    font-size: 3.5vh; /* Data e hora ligeiramente maiores e legíveis */
+    font-weight: 700;
+    color: var(--color-dark);
 }
 
-#recent-list {
-    list-style: none;
-    padding: 0;
-    width: 100%;
-    font-size: 36px;
-    overflow-y: auto;
-    max-height: 70vh;
-}
-
-#recent-list li {
+.datetime-item {
     display: flex;
-    justify-content: space-around;
-    padding: 8px;
-    background-color: #005580;
-    margin-bottom: 8px;
-    color: var(--layout-text-color);
-    font-weight: bold;
-    border-radius: 5px;
+    align-items: center;
+    gap: 0.8vw;
 }
 
-#recent-list li span {
+.datetime-item svg {
+    width: 3.8vh; /* Ícones proporcionais */
+    height: 3.8vh;
+    fill: var(--color-dark);
+}
+
+#divider-datetime {
+    color: #d0dbed;
+    font-weight: 300;
+}
+
+#status-dot {
+    width: 1.5vh;
+    height: 1.5vh;
+    border-radius: 50%;
+    margin-left: 1vw;
+}
+
+.status-connected {
+    background-color: transparent;
+}
+
+.status-disconnected {
+    background-color: #e74c3c;
+}
+
+/* Área Principal (Chamada de Senhas) */
+#main-call-area {
     flex: 1;
-    text-align: center;
-}
-
-#main-content {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: 100vh;
-    overflow: hidden;
-}
-
-#header {
-    display: flex;
-    justify-content: center; /* Centraliza o grupo para não cortar nas bordas */
-    align-items: center;
-    background-color: #000;
-    color: var(--layout-text-color);
-    padding: 15px 20px; /* Reduz a altura da barra */
-    text-align: center;
-    gap: clamp(30px, 5vw, 80px); /* Espaço seguro entre Senha e Guichê */
-}
-
-.header-item {
-    display: flex;
-    align-items: center;
-    gap: clamp(10px, 2vw, 20px);
-    text-align: center;
-}
-
-.header-item span {
-    font-size: clamp(24px, 3vw, 40px); /* Rótulo menor dá mais destaque ao número */
-    font-weight: bold;
-}
-
-.header-item h1 {
-    margin: 0;
-    font-size: clamp(120px, 12vw, 210px); /* NÚMERO GIGANTE E BEM VISÍVEL */
-    color: #ffffff;
-    font-weight: 900;
-    line-height: 1;
-}
-
-/* Cores das Filas */
-.queue-normal {
-    background-color: #FFFFFF !important;
-}
-
-.queue-normal h1,
-.queue-normal span,
-.queue-normal li span {
-    color: #000000 !important;
-}
-
-.queue-prioritaria {
-    background-color: #FF0000 !important;
-}
-
-.queue-prioritaria h1,
-.queue-prioritaria span,
-.queue-prioritaria li span {
-    color: #FFFFFF !important;
-}
-
-.queue-dr_central {
-    background-color: #800080 !important;
-}
-
-.queue-dr_central h1,
-.queue-dr_central span,
-.queue-dr_central li span {
-    color: #FFFFFF !important;
-}
-
-.queue-odonto {
-    background-color: #008000 !important; /* Verde Odonto */
-}
-
-.queue-odonto h1,
-.queue-odonto span,
-.queue-odonto li span {
-    color: #FFFFFF !important;
-}
-
-#queue-name-display {
-    font-size: 40px;
-    font-weight: bold;
-    display: block;
-    margin-top: 10px;
-}
-
-/* Estilos gerais */
-#video-container {
-    position: relative;
-    flex-grow: 1;
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
-    background-color: #003366;
-}
-
-#clinic-video {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
-    /* Garante que o vídeo ocupe toda a área */
-}
-
-/* Modo tela cheia para o vídeo */
-body.fullscreen #video-container {
-    width: 100%;
-    height: auto;
-    max-height: 100vh;
-}
-
-body.fullscreen #clinic-video {
-    width: 100%;
-    height: auto;
-    object-fit: auto;
-}
-
-#footer {
-    background-color: var(--footer-background);
-    color: var(--layout-text-color);
-    padding: 10px;
-    text-align: center;
-    font-size: 18px;
-}
-
-#footer {
-    position: absolute;
-    /* Permite que o footer seja posicionado fora do vídeo */
-    bottom: 20px;
-    /* Distância da borda inferior */
-    left: 10px;
-    /* Distância da borda esquerda */
-    color: var(--layout-text-color);
-    font-size: 18px;
-    font-weight: bold;
-    background-color: rgba(0, 0, 0, 0.5);
-    /* Fundo semi-transparente para melhorar legibilidade */
-    padding: 5px 15px;
-    border-radius: 5px;
+    padding: 0 3vw;
+    gap: 3.5vw;
     z-index: 10;
-    /* Garante que o texto fique sobre o vídeo */
+    margin-top: -4vh;
 }
 
-
-/* Responsividade */
-@media (max-width: 1024px) {
-    body {
-        flex-direction: column;
-    }
-
-    #panel-container {
-        flex-direction: column;
-    }
-
-    #sidebar {
-        width: 100%;
-        height: 75%;
-    }
-
-    #main-content {
-        width: 100%;
-        height: 25%;
-    }
-
-    #header {
-        font-size: 18px;
-    }
-
-    #video-container {
-        max-height: 50vh;
-    }
-
-    .header-item h1 {
-        font-size: 40px;
-    }
+.call-left {
+    flex: 1.1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
 }
 
-#overlay-info {
-    position: absolute;
-    bottom: 10px;
-    /* Alinha o texto no fundo */
-    right: 10px;
-    /* Alinha o texto à direita */
-    color: white;
-    font-size: 18px;
-    font-weight: bold;
-    background-color: rgba(0, 0, 0, 0.5);
-    /* Fundo semi-transparente para melhorar legibilidade */
-    padding: 5px 15px;
+#current-password {
+    font-size: 44vh;
+    font-weight: 900;
+    line-height: 0.75;
+    letter-spacing: -2vh;
+    margin: 0;
+    padding-right: 1.5vw;
+}
+
+#current-password.queue-normal {
+    color: #03588C !important;
+}
+
+#current-password.queue-prioritaria {
+    color: #e53935 !important;
+}
+
+#current-password.queue-dr_central {
+    color: #684a93 !important;
+}
+
+#current-password.queue-odonto {
+    color: #2abcb7 !important;
+}
+
+.call-divider {
+    width: 10px; /* Linha vertical amarela */
+    height: 48vh;
+    background-color: var(--color-gold);
     border-radius: 5px;
+}
+
+.call-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding-left: 1.5vw;
+}
+
+.label-dirija {
+    font-size: 5.5vh;
+    font-weight: 800;
+    color: var(--color-dark);
+    letter-spacing: 0.05vw;
+    margin-bottom: 0.8vh;
+}
+
+.label-guiche {
+    font-size: 11vh;
+    font-weight: 900;
+    color: var(--color-blue);
+    margin: 0;
+    line-height: 0.9;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.underline-gold {
+    width: 90%;
+    height: 12px; /* Linha amarela horizontal */
+    background-color: var(--color-gold);
+    margin-top: 1.8vh;
+    border-radius: 5px;
+}
+
+/* --- Rodapé (Chamadas Recentes) --- */
+#bottom-section {
+    height: 28vh;
+    background-color: var(--bg-bottom);
+    display: flex;
+    flex-direction: column;
+    padding: 2vh 4vw 2.5vh 4vw;
     z-index: 10;
-    /* Garante que o texto fique sobre o vídeo */
+    border-top: 1.2vh solid var(--color-dark); /* Borda superior do rodapé */
 }
 
-@media (max-width: 1024px) {
-    #overlay-info {
-        font-size: 14px;
-        /* Reduz o tamanho da fonte em telas menores */
-    }
+#recent-header {
+    margin-bottom: 0.8vh;
 }
 
+#recent-header h2 {
+    color: #ffffff;
+    font-size: 2.2vh;
+    font-weight: 700;
+    letter-spacing: 0.1vw;
+    margin: 0;
+    text-transform: uppercase;
+}
+
+#recent-divider {
+    width: 100%;
+    height: 2px;
+    background-color: rgba(255, 255, 255, 0.25);
+    margin-bottom: 1.5vh;
+}
+
+#recent-list {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex: 1;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.recent-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-right: 2px solid rgba(255, 255, 255, 0.25); /* Divisor vertical */
+    height: 65%; /* Altura centralizada e limpa do divisor */
+}
+
+.recent-item:last-child {
+    border-right: none;
+}
+
+.recent-pass {
+    font-size: 10.5vh;
+    font-weight: 800;
+    line-height: 0.9;
+    margin-bottom: 0.5vh;
+    color: #ffffff !important;
+}
+
+.recent-guiche {
+    font-size: 2.8vh;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 600;
+}
+
+/* --- Modal Centralizado --- */
 .modal {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.7);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -307,211 +317,72 @@ body.fullscreen #clinic-video {
 }
 
 .modal-content {
-    background-color: #fff;
-    padding: 20px;
-    border-radius: 10px;
+    background: linear-gradient(135deg, #073A7A, #0b51a5);
+    color: white;
+    padding: 5vh 5vw;
+    border-radius: 20px;
     text-align: center;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    width: 80%;
-    max-width: 400px;
+    width: 650px;
+    max-width: 90%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2vh;
+}
+
+.modal-content h3 {
+    margin: 0;
+    font-size: 3vh;
+    color: #ffffff;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.15vw;
+}
+
+.modal-content h1 {
+    margin: 0;
+    font-size: 7vh;
+    font-weight: 800;
+    color: #ffffff;
 }
 
 .modal-content h2 {
-    font-size: 24px;
-    color: #333;
-    margin-bottom: 10px;
-}
-
-.modal-content p {
-    font-size: 18px;
-    color: #555;
-}
-
-/* Tela temporária para exibir o nome do paciente */
-#name-overlay h1,
-#name-overlay h2 {
     margin: 0;
-    padding: 10px;
-    text-align: center;
-}
-
-/* Tela de sobreposição */
-#name-overlay {
-    position: absolute;
-    /* Posiciona o overlay dentro do vídeo */
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    /* Centraliza o modal no vídeo */
-    z-index: 10;
-    /* Garante que o modal fique acima do vídeo */
-    pointer-events: none;
-    /* Permite interações com outros elementos, como senhas */
-}
-
-/* Modal centralizado */
-#name-overlay .modal {
-    background: linear-gradient(135deg, #003366, #004d99);
-    /* Gradiente azul escuro */
-    color: white;
-    padding: 40px 50px;
-    /* Ajusta o espaçamento interno */
-    border-radius: 15px;
-    /* Bordas arredondadas */
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
-    /* Sombra mais destacada */
-    text-align: center;
-    width: 600px;
-    /* Ajusta a largura do modal */
-    max-width: 90%;
-    font-family: "Poppins", sans-serif;
-    /* Fonte consistente */
-    pointer-events: auto;
-    /* Permite interações no modal */
-    transform: scale(0.8);
-    animation: scaleUp 0.3s forwards;
-    /* Animação de escala */
-}
-
-/* Estilo dos textos no modal */
-#name-overlay .modal h1 {
-    margin: 0;
-    font-size: 80px;
-    /* Destaque maior para o nome */
+    font-size: 6vh;
+    color: var(--color-gold);
     font-weight: bold;
-    /* Negrito */
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-    /* Sombra no texto */
-    color: #ffffff;
-    /* Cor branca para o nome */
 }
 
-#name-overlay .modal h2 {
-    margin: 20px 0;
-    font-size: 120px;
-    /* Tamanho maior para o guichê */
-    color: #ffcc00;
-    /* Cor amarela para destacar o guichê */
-    font-weight: bold;
-    /* Negrito */
-}
-
-#name-overlay .modal h3 {
-    margin: 15px 0;
-    font-size: 40px;
-    /* Tamanho menor para o título */
-    color: #ffffff;
-    /* Cor branca */
-    font-weight: bold;
-    /* Negrito */
-    text-transform: uppercase;
-    /* Texto em maiúsculas */
-}
-
-/* Modal centralizado */
-#name-modal {
-    position: absolute;
-    /* Agora relativo ao vídeo */
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    /* Fundo preto semi-transparente */
-    display: none;
-    /* Oculto por padrão */
-    justify-content: center;
-    align-items: center;
-    z-index: 10;
-    /* Garante que fique acima do vídeo */
-}
-
-/* Conteúdo do modal */
-#name-modal .modal-content {
-    background: linear-gradient(135deg, #003366, #004d99);
-    /* Gradiente azul escuro */
-    color: white;
-    padding: 40px 50px;
-    /* Ajusta o espaçamento interno */
-    border-radius: 15px;
-    /* Bordas arredondadas */
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
-    /* Sombra mais destacada */
-    text-align: center;
-    width: 600px;
-    /* Ajusta a largura do modal */
-    max-width: 90%;
-    font-family: "Poppins", sans-serif;
-    /* Fonte consistente */
-    display: flex;
-    flex-direction: column;
-    /* Alinha os elementos verticalmente */
-    justify-content: center;
-    /* Centraliza verticalmente */
-    align-items: center;
-    /* Centraliza horizontalmente */
-    gap: 20px;
-    /* Espaçamento entre os elementos */
-}
-
-/* Estilo do título "Paciente:" e "Guichê:" */
-#name-modal .modal-content h3 {
-    margin: 0;
-    font-size: 40px;
-    /* Tamanho menor para o título */
-    color: #ffffff;
-    /* Cor branca */
-    font-weight: bold;
-    /* Negrito */
-    text-transform: uppercase;
-    /* Texto em maiúsculas */
-}
-
-/* Estilo do nome do paciente */
-#name-modal .modal-content h1 {
-    margin: 0;
-    font-size: 80px;
-    /* Destaque maior para o nome */
-    font-weight: bold;
-    /* Negrito */
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-    /* Sombra no texto */
-    color: #ffffff;
-    /* Cor branca para o nome */
-}
-
-/* Estilo do número do guichê */
-#name-modal .modal-content h2 {
-    margin: 0;
-    font-size: 90px;
-    /* Tamanho maior para o guichê */
-    color: #ffcc00;
-    /* Cor amarela para destacar o guichê */
-    font-weight: bold;
-    /* Negrito */
-}
-
-/* Animações */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
+/* --- Responsividade Telas Verticais --- */
+@media (max-width: 768px) {
+    #main-call-area {
+        flex-direction: column;
+        gap: 1.5vh;
     }
 
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes scaleUp {
-    from {
-        transform: scale(0.8);
+    .call-left, .call-right {
+        justify-content: center;
+        align-items: center;
+        text-align: center;
     }
 
-    to {
-        transform: scale(1);
+    .call-divider {
+        width: 80%;
+        height: 4px;
+    }
+
+    .underline-gold {
+        margin: 1.5vh auto 0 auto;
+    }
+
+    #recent-list {
+        flex-wrap: wrap;
+    }
+
+    .recent-item {
+        flex: 1 0 33%;
+        border-right: none;
+        margin-bottom: 1vh;
     }
 }
