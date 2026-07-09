@@ -9,10 +9,6 @@ import time
 import glob
 import threading
 from escpos.printer import Network
-from dotenv import load_dotenv
-
-# Carrega as variáveis de ambiente do arquivo .env
-load_dotenv()
 
 SAO_PAULO = pytz.timezone('America/Sao_Paulo')
 

@@ -7,4 +7,3 @@ gTTS
 Pillow
 python-escpos
 pytz
-python-dotenv
