@@ -316,7 +316,7 @@ def get_called_today(clinic_id):
         clinic_id=clinic_id,
         date=today,
         status='CHAMADO'
-    ).order_by(Password.called_at.desc()).limit(10).all()
+    ).order_by(Password.called_at.desc()).limit(7).all()
     
     queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
     
