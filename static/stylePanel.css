@@ -281,7 +281,7 @@ body {
     justify-content: center;
     border-right: 2px solid rgba(255, 255, 255, 0.25); /* Divisor vertical */
     height: 65%; /* Altura centralizada e limpa do divisor */
-    padding: 0 1.5vw; /* Adiciona espaçamento interno horizontal para evitar cortes e sobreposição */
+    padding: 0 0.5vw; /* Reduzido de 1.5vw para evitar que esprema o conteúdo com muitos itens */
 }
 
 .recent-item:last-child {
@@ -289,17 +289,19 @@ body {
 }
 
 .recent-pass {
-    font-size: 8vh; /* Reduzido de 10.5vh para dar mais respiro e evitar cortes/sobreposição */
+    font-size: 7vh; /* Reduzido de 8vh para dar mais espaço a mais itens */
     font-weight: 800;
     line-height: 0.9;
     margin-bottom: 0.5vh;
     color: #ffffff !important;
+    white-space: nowrap; /* Impede quebra de linha da senha */
 }
 
 .recent-guiche {
-    font-size: 2.8vh;
+    font-size: 2.3vh; /* Reduzido de 2.8vh para caber perfeitamente na horizontal */
     color: rgba(255, 255, 255, 0.7);
     font-weight: 600;
+    white-space: nowrap; /* Impede quebra de linha de 'Guichê X' */
 }
 
 /* --- Modal Centralizado --- */

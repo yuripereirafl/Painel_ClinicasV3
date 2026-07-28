@@ -161,11 +161,13 @@
                         data.forEach(p => {
                             const li = document.createElement('li');
                             const qType = (p.queue_type || 'NORMAL').toLowerCase();
+                            const timeHtml = p.created_at ? `<span class="time-text"><i class="far fa-clock"></i> ${p.created_at}</span>` : '';
                             // p.number já vem formatado com prefixo da API
                             li.innerHTML = `
                                 <span class="list-password-num">${p.number}</span>
                                 <div class="list-meta">
                                     <span class="badge badge-${qType}">${p.queue_type}</span>
+                                    ${timeHtml}
                                 </div>
                             `;
                             list.appendChild(li);

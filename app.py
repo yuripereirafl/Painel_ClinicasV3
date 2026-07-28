@@ -305,7 +305,8 @@ def get_waiting_passwords(clinic_id):
     return jsonify([{
         'number': f"{queue_tags.get(p.queue_type, 'N')}{p.number:02d}",
         'queue_type': p.queue_type,
-        'id': p.id
+        'id': p.id,
+        'created_at': p.created_at.strftime('%H:%M:%S') if p.created_at else ''
     } for p in passwords])
 
 @app.route('/api/clinic/<int:clinic_id>/called_today')
@@ -377,6 +378,7 @@ def generate_password(data):
         date=today, 
         clinic_id=clinic_id
     )
+    password.created_at = datetime.now(SAO_PAULO)
     if status == 'CHAMADO':
         password.called_at = datetime.now(SAO_PAULO)
 
@@ -565,6 +567,20 @@ if __name__ == '__main__':
     with app.app_context():
         print("CRIANDO TABELAS")
         db.create_all()
+        
+        # Garante que a coluna 'created_at' existe na tabela 'password'
+        try:
+            db.session.execute("SELECT created_at FROM password LIMIT 1;")
+        except Exception:
+            db.session.rollback()
+            try:
+                db.session.execute("ALTER TABLE password ADD COLUMN created_at TIMESTAMP;")
+                db.session.commit()
+                print("Coluna 'created_at' adicionada com sucesso à tabela 'password'.")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Erro ao adicionar coluna 'created_at': {e}")
+                
         # Cria uma clínica padrão se não houver nenhuma
         if not Clinic.query.first():
             default_clinic = Clinic(name="Clínica Piloto", location="Centro")
