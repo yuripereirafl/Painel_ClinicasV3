@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_socketio import SocketIO, emit, join_room
 from models import db, Password, Clinic, Attendant
+from sqlalchemy import text
 from datetime import datetime
 import pytz
 from gtts import gTTS
@@ -570,11 +571,11 @@ if __name__ == '__main__':
         
         # Garante que a coluna 'created_at' existe na tabela 'password'
         try:
-            db.session.execute("SELECT created_at FROM password LIMIT 1;")
+            db.session.execute(text("SELECT created_at FROM password LIMIT 1;"))
         except Exception:
             db.session.rollback()
             try:
-                db.session.execute("ALTER TABLE password ADD COLUMN created_at TIMESTAMP;")
+                db.session.execute(text("ALTER TABLE password ADD COLUMN created_at TIMESTAMP;"))
                 db.session.commit()
                 print("Coluna 'created_at' adicionada com sucesso à tabela 'password'.")
             except Exception as e:
