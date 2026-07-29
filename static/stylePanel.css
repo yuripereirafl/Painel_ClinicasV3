@@ -265,31 +265,38 @@ body {
 
 #recent-list {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     flex: 1;
     list-style: none;
     padding: 0;
     margin: 0;
+    width: 100%;
 }
 
 .recent-item {
-    flex: 1;
+    flex: 0 0 16.66%;
+    max-width: 16.66%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     border-right: 2px solid rgba(255, 255, 255, 0.25); /* Divisor vertical */
-    height: 65%; /* Altura centralizada e limpa do divisor */
-    padding: 0 0.5vw; /* Reduzido de 1.5vw para evitar que esprema o conteúdo com muitos itens */
+    height: 80%; /* Aumentado de 65% para dar mais presença */
+    padding: 0 0.5vw;
 }
 
 .recent-item:last-child {
     border-right: none;
 }
 
+/* Garante visualmente que no máximo 6 itens serão exibidos, evitando desalinhamento */
+.recent-item:nth-child(n+7) {
+    display: none !important;
+}
+
 .recent-pass {
-    font-size: 7vh; /* Reduzido de 8vh para dar mais espaço a mais itens */
+    font-size: 9vh; /* Aumentado de 7vh para chamadas mais visíveis */
     font-weight: 800;
     line-height: 0.9;
     margin-bottom: 0.5vh;
@@ -298,7 +305,7 @@ body {
 }
 
 .recent-guiche {
-    font-size: 2.3vh; /* Reduzido de 2.8vh para caber perfeitamente na horizontal */
+    font-size: 2.8vh; /* Aumentado de 2.3vh para melhor legibilidade */
     color: rgba(255, 255, 255, 0.7);
     font-weight: 600;
     white-space: nowrap; /* Impede quebra de linha de 'Guichê X' */
@@ -380,10 +387,12 @@ body {
 
     #recent-list {
         flex-wrap: wrap;
+        justify-content: center;
     }
 
     .recent-item {
-        flex: 1 0 33%;
+        flex: 0 0 33.33%;
+        max-width: 33.33%;
         border-right: none;
         margin-bottom: 1vh;
     }
