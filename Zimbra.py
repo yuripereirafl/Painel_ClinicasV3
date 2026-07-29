@@ -46,7 +46,8 @@ class zimbra:
         part = MIMEBase('application', 'octet-stream')
         part.set_payload(attachment_content)
         encoders.encode_base64(part)
-        part.add_header('Content-Disposition', f'attachment; filename="{attachment_filename}"')
+        part.add_header('Content-Disposition', 'attachment', filename=attachment_filename)
+        part.set_param('name', attachment_filename)
         msg.attach(part)
 
         try:

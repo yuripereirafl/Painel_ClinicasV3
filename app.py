@@ -9,6 +9,7 @@ import os
 import time
 import csv
 import io
+import unicodedata
 from Zimbra import zimbra
 import glob
 import threading
@@ -656,7 +657,8 @@ def send_report_email():
     # Enviar E-mail usando a classe Zimbra
     z = zimbra()
     subject = f"Relatório de Atendimento - {clinic.name} - {period_label}"
-    filename = f"relatorio_{clinic.name.lower().replace(' ', '_')}_{period}.csv"
+    clinic_name_clean = "".join(c for c in unicodedata.normalize('NFKD', clinic.name) if not unicodedata.combining(c)).lower().replace(' ', '_')
+    filename = f"relatorio_{clinic_name_clean}_{period}.csv"
     
     # Destinatário padrão ou customizado
     email_dest = recipient if recipient else 'yuri.flores@centraldeconsultas.med.br'
