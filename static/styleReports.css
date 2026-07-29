@@ -109,7 +109,8 @@ body {
     color: #475569;
 }
 
-.input-wrapper select {
+.input-wrapper select,
+.input-wrapper input[type="month"] {
     padding: 10px 16px;
     border-radius: 8px;
     border: 1px solid #cbd5e1;
@@ -120,9 +121,11 @@ body {
     min-width: 220px;
     outline: none;
     transition: border-color 0.2s;
+    height: 44px;
 }
 
-.input-wrapper select:focus {
+.input-wrapper select:focus,
+.input-wrapper input[type="month"]:focus {
     border-color: var(--color-blue);
 }
 

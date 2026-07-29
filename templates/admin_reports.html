@@ -37,7 +37,12 @@
                         <option value="today" selected>Hoje</option>
                         <option value="7days">Últimos 7 dias</option>
                         <option value="30days">Último mês (30 dias)</option>
+                        <option value="custom-month">Escolher Mês/Ano...</option>
                     </select>
+                </div>
+                <div class="input-wrapper" id="month-picker-wrapper" style="display: none;">
+                    <label for="month-input"><i class="far fa-calendar"></i> Escolha o Mês:</label>
+                    <input type="month" id="month-input">
                 </div>
                 <button id="btn-refresh" class="btn-primary"><i class="fas fa-sync-alt"></i> Atualizar</button>
             </div>
@@ -151,16 +156,35 @@
             }, 5000);
         }
 
+        // Inicializa o input de mês com o mês atual
+        const todayDate = new Date();
+        const curYear = todayDate.getFullYear();
+        const curMonth = String(todayDate.getMonth() + 1).padStart(2, '0');
+        const monthInput = document.getElementById('month-input');
+        if (monthInput) {
+            monthInput.value = `${curYear}-${curMonth}`;
+        }
+
         function loadReportsData() {
             const clinicId = clinicSelect.value;
             const period = periodSelect.value;
+            const month = monthInput ? monthInput.value : '';
+
+            if (period === 'custom-month' && !month) {
+                return;
+            }
 
             if (!clinicId) return;
 
             btnRefresh.disabled = true;
             btnRefresh.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
 
-            fetch(`/api/reports/data?clinic_id=${clinicId}&period=${period}`)
+            let url = `/api/reports/data?clinic_id=${clinicId}&period=${period}`;
+            if (period === 'custom-month') {
+                url += `&month=${month}`;
+            }
+
+            fetch(url)
                 .then(res => res.json())
                 .then(data => {
                     if (data.error) {
@@ -225,6 +249,7 @@
         btnSendEmail.onclick = function() {
             const clinicId = clinicSelect.value;
             const period = periodSelect.value;
+            const month = monthInput ? monthInput.value : '';
             const recipient = emailRecipient.value.trim();
 
             if (!clinicId) return;
@@ -236,16 +261,21 @@
             btnSendEmail.disabled = true;
             btnSendEmail.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
 
+            const payload = {
+                clinic_id: clinicId,
+                period: period,
+                recipient: recipient
+            };
+            if (period === 'custom-month') {
+                payload.month = month;
+            }
+
             fetch('/api/reports/send_email', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    clinic_id: clinicId,
-                    period: period,
-                    recipient: recipient
-                })
+                body: JSON.stringify(payload)
             })
             .then(res => res.json())
             .then(data => {
@@ -268,7 +298,20 @@
         // Eventos
         btnRefresh.onclick = loadReportsData;
         clinicSelect.onchange = loadReportsData;
-        periodSelect.onchange = loadReportsData;
+        
+        periodSelect.onchange = function() {
+            const monthWrapper = document.getElementById('month-picker-wrapper');
+            if (this.value === 'custom-month') {
+                monthWrapper.style.display = 'block';
+            } else {
+                monthWrapper.style.display = 'none';
+            }
+            loadReportsData();
+        };
+
+        if (monthInput) {
+            monthInput.onchange = loadReportsData;
+        }
 
         // Carga Inicial
         window.onload = loadReportsData;
