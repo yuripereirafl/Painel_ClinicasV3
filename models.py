@@ -18,6 +18,7 @@ class Password(db.Model):
     date = db.Column(db.Date, nullable=False)
     called_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=True) # Data/Hora de geração da senha
+    finished_at = db.Column(db.DateTime, nullable=True) # Data/Hora de finalização do atendimento
     clinic_id = db.Column(db.Integer, db.ForeignKey('clinic.id'), nullable=False)  # Relaciona com a clínica
     clinic = db.relationship('Clinic', backref=db.backref('passwords', lazy=True))
 

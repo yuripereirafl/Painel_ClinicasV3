@@ -132,6 +132,10 @@
 
         // Concluir Atendimento
         document.getElementById('attend-patient').onclick = function () {
+            const guiche = document.getElementById('guiche-select').value;
+            if (guiche) {
+                socket.emit('conclude_attendance', { clinic_id: clinic_id, guiche: guiche });
+            }
             toggleCallButtons(true);
             this.style.display = 'none';
             document.getElementById('current-call-box').style.display = 'none';

@@ -2,11 +2,14 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_socketio import SocketIO, emit, join_room
 from models import db, Password, Clinic, Attendant
 from sqlalchemy import text
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 from gtts import gTTS
 import os
 import time
+import csv
+import io
+from Zimbra import zimbra
 import glob
 import threading
 from escpos.printer import Network
@@ -329,6 +332,342 @@ def get_called_today(clinic_id):
         'called_at': p.called_at.strftime('%H:%M:%S') if p.called_at else ''
     } for p in passwords])
 
+@app.route('/admin/reports')
+def admin_reports():
+    """Renderiza a página de relatórios administrativos."""
+    clinics = Clinic.query.all()
+    return render_template('admin_reports.html', clinics=clinics)
+
+@app.route('/api/reports/data')
+def get_reports_data():
+    clinic_id = request.args.get('clinic_id', type=int)
+    period = request.args.get('period', 'today')
+
+    if not clinic_id:
+        return jsonify({'error': 'clinic_id é obrigatório'}), 400
+
+    today = datetime.now(SAO_PAULO).date()
+    if period == 'today':
+        start_date = today
+    elif period == '7days':
+        start_date = today - timedelta(days=7)
+    elif period == '30days':
+        start_date = today - timedelta(days=30)
+    else:
+        start_date = today
+
+    # Busca as senhas filtradas por clínica e data de criação
+    passwords = Password.query.filter(
+        Password.clinic_id == clinic_id,
+        Password.date >= start_date
+    ).all()
+
+    # Cálculo dos KPIs principais
+    total_generated = len(passwords)
+    total_called = sum(1 for p in passwords if p.status in ('CHAMADO', 'CONCLUIDO'))
+    total_finished = sum(1 for p in passwords if p.status == 'CONCLUIDO')
+
+    wait_times = []
+    attendance_times = []
+
+    for p in passwords:
+        if p.called_at and p.created_at:
+            wait_min = (p.called_at - p.created_at).total_seconds() / 60.0
+            wait_times.append(wait_min)
+        if p.finished_at and p.called_at:
+            attend_min = (p.finished_at - p.called_at).total_seconds() / 60.0
+            attendance_times.append(attend_min)
+
+    avg_wait = round(sum(wait_times) / len(wait_times), 1) if wait_times else 0
+    avg_attend = round(sum(attendance_times) / len(attendance_times), 1) if attendance_times else 0
+
+    # Agrupamento por Tipo de Fila
+    queue_summary = {}
+    for p in passwords:
+        q_type = p.queue_type
+        if q_type not in queue_summary:
+            queue_summary[q_type] = {'total': 0, 'called': 0, 'finished': 0, 'wait_times': []}
+        
+        queue_summary[q_type]['total'] += 1
+        if p.status in ('CHAMADO', 'CONCLUIDO'):
+            queue_summary[q_type]['called'] += 1
+        if p.status == 'CONCLUIDO':
+            queue_summary[q_type]['finished'] += 1
+
+        if p.called_at and p.created_at:
+            wait_min = (p.called_at - p.created_at).total_seconds() / 60.0
+            queue_summary[q_type]['wait_times'].append(wait_min)
+
+    queue_list = []
+    for q_type, stats in queue_summary.items():
+        w_times = stats['wait_times']
+        avg_w = round(sum(w_times) / len(w_times), 1) if w_times else 0
+        queue_list.append({
+            'queue_type': q_type,
+            'total': stats['total'],
+            'called': stats['called'],
+            'finished': stats['finished'],
+            'avg_wait': avg_w
+        })
+
+    # Agrupamento por Guichê
+    guiche_summary = {}
+    for p in passwords:
+        if not p.guiche:
+            continue
+        g = p.guiche
+        if g not in guiche_summary:
+            guiche_summary[g] = {'total': 0, 'finished': 0, 'attendance_times': []}
+        
+        guiche_summary[g]['total'] += 1
+        if p.status == 'CONCLUIDO':
+            guiche_summary[g]['finished'] += 1
+        
+        if p.finished_at and p.called_at:
+            attend_min = (p.finished_at - p.called_at).total_seconds() / 60.0
+            guiche_summary[g]['attendance_times'].append(attend_min)
+
+    guiche_list = []
+    for g, stats in guiche_summary.items():
+        a_times = stats['attendance_times']
+        avg_a = round(sum(a_times) / len(a_times), 1) if a_times else 0
+        guiche_list.append({
+            'guiche': g,
+            'total': stats['total'],
+            'finished': stats['finished'],
+            'avg_attendance': avg_a
+        })
+
+    return jsonify({
+        'total_generated': total_generated,
+        'total_called': total_called,
+        'total_finished': total_finished,
+        'avg_wait': avg_wait,
+        'avg_attendance': avg_attend,
+        'queues': queue_list,
+        'guiches': guiche_list
+    })
+
+@app.route('/api/reports/send_email', methods=['POST'])
+def send_report_email():
+    data = request.json
+    clinic_id = data.get('clinic_id')
+    period = data.get('period', 'today')
+    recipient = data.get('recipient')
+
+    if not clinic_id:
+        return jsonify({'error': 'clinic_id é obrigatório'}), 400
+
+    clinic = Clinic.query.get(clinic_id)
+    if not clinic:
+        return jsonify({'error': 'Clínica não encontrada'}), 404
+
+    # Determinar datas
+    today = datetime.now(SAO_PAULO).date()
+    if period == 'today':
+        start_date = today
+        period_label = f"Hoje ({today.strftime('%d/%m/%Y')})"
+    elif period == '7days':
+        start_date = today - timedelta(days=7)
+        period_label = f"Últimos 7 dias ({start_date.strftime('%d/%m/%Y')} a {today.strftime('%d/%m/%Y')})"
+    elif period == '30days':
+        start_date = today - timedelta(days=30)
+        period_label = f"Último mês ({start_date.strftime('%d/%m/%Y')} a {today.strftime('%d/%m/%Y')})"
+    else:
+        start_date = today
+        period_label = f"Hoje ({today.strftime('%d/%m/%Y')})"
+
+    # Buscar senhas
+    passwords = Password.query.filter(
+        Password.clinic_id == clinic_id,
+        Password.date >= start_date
+    ).order_by(Password.id.asc()).all()
+
+    # Calcular KPIs resumidos
+    total_generated = len(passwords)
+    total_called = sum(1 for p in passwords if p.status in ('CHAMADO', 'CONCLUIDO'))
+    total_finished = sum(1 for p in passwords if p.status == 'CONCLUIDO')
+
+    wait_times = []
+    attendance_times = []
+    for p in passwords:
+        if p.called_at and p.created_at:
+            wait_times.append((p.called_at - p.created_at).total_seconds() / 60.0)
+        if p.finished_at and p.called_at:
+            attendance_times.append((p.finished_at - p.called_at).total_seconds() / 60.0)
+
+    avg_wait = round(sum(wait_times) / len(wait_times), 1) if wait_times else 0
+    avg_attend = round(sum(attendance_times) / len(attendance_times), 1) if attendance_times else 0
+
+    # Resumo por fila (HTML)
+    queue_summary = {}
+    for p in passwords:
+        q = p.queue_type
+        if q not in queue_summary:
+            queue_summary[q] = {'total': 0, 'finished': 0, 'wait_times': []}
+        queue_summary[q]['total'] += 1
+        if p.status == 'CONCLUIDO':
+            queue_summary[q]['finished'] += 1
+        if p.called_at and p.created_at:
+            queue_summary[q]['wait_times'].append((p.called_at - p.created_at).total_seconds() / 60.0)
+
+    queue_rows_html = ""
+    for q, stats in queue_summary.items():
+        w = stats['wait_times']
+        avg_w = round(sum(w) / len(w), 1) if w else 0
+        queue_rows_html += f"""
+        <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">{q}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{stats['total']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{stats['finished']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{avg_w} min</td>
+        </tr>
+        """
+
+    # Resumo por guichê (HTML)
+    guiche_summary = {}
+    for p in passwords:
+        if not p.guiche:
+            continue
+        g = p.guiche
+        if g not in guiche_summary:
+            guiche_summary[g] = {'total': 0, 'finished': 0, 'attendance_times': []}
+        guiche_summary[g]['total'] += 1
+        if p.status == 'CONCLUIDO':
+            guiche_summary[g]['finished'] += 1
+        if p.finished_at and p.called_at:
+            guiche_summary[g]['attendance_times'].append((p.finished_at - p.called_at).total_seconds() / 60.0)
+
+    guiche_rows_html = ""
+    for g, stats in guiche_summary.items():
+        a = stats['attendance_times']
+        avg_a = round(sum(a) / len(a), 1) if a else 0
+        guiche_rows_html += f"""
+        <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">{g}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{stats['total']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{stats['finished']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{avg_a} min</td>
+        </tr>
+        """
+
+    # Corpo do E-mail em HTML
+    html_body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; background-color: #f4f6f9; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); border-top: 8px solid #073A7A;">
+            <h2 style="color: #073A7A; margin-top: 0;">Relatório de Atendimentos</h2>
+            <p><strong>Clínica:</strong> {clinic.name}</p>
+            <p><strong>Período:</strong> {period_label}</p>
+            
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+            
+            <h3 style="color: #073A7A;">Indicadores Gerais</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tr>
+                    <td style="padding: 8px 0;"><strong>Total de Senhas Geradas:</strong></td>
+                    <td style="text-align: right;">{total_generated}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0;"><strong>Total de Senhas Chamadas:</strong></td>
+                    <td style="text-align: right;">{total_called}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0;"><strong>Total de Atendimentos Concluídos:</strong></td>
+                    <td style="text-align: right;">{total_finished}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #3E8FF7;"><strong>Tempo Médio de Espera (Fila):</strong></td>
+                    <td style="text-align: right; color: #3E8FF7;"><strong>{avg_wait} min</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #F4B400;"><strong>Tempo Médio de Guichê (Atendimento):</strong></td>
+                    <td style="text-align: right; color: #F4B400;"><strong>{avg_attend} min</strong></td>
+                </tr>
+            </table>
+
+            {f'<h3 style="color: #073A7A;">Resumo por Tipo de Fila</h3><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead style="background: #f4f6f9;"><tr><th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Fila</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Geradas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Concluídas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Espera Média</th></tr></thead><tbody>{queue_rows_html}</tbody></table>' if queue_rows_html else ''}
+            
+            {f'<h3 style="color: #073A7A;">Resumo por Guichê</h3><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead style="background: #f4f6f9;"><tr><th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Guichê</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Chamadas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Concluídas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Tempo Médio</th></tr></thead><tbody>{guiche_rows_html}</tbody></table>' if guiche_rows_html else ''}
+            
+            <div style="background-color: #e7f3ff; color: #1d5287; padding: 15px; border-radius: 6px; margin-top: 20px; font-size: 14px;">
+                <strong>Nota:</strong> O relatório detalhado com cada uma das senhas, horários de criação, chamada e conclusão está anexado a este e-mail como arquivo <code>.csv</code>.
+            </div>
+            
+            <p style="font-size: 12px; color: #777; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; text-align: center;">
+                Painel de Senhas v3 - Gerador automático de relatórios
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+
+    # Gerar a planilha CSV em memória (delimitada por ';' e com UTF-8 BOM para Excel)
+    output = io.StringIO()
+    output.write('\ufeff') # UTF-8 BOM
+    writer = csv.writer(output, delimiter=';')
+    
+    # Cabeçalho da planilha
+    writer.writerow([
+        'ID da Senha', 
+        'Data', 
+        'Senha', 
+        'Tipo de Fila', 
+        'Guichê', 
+        'Status', 
+        'Gerada em', 
+        'Chamada em', 
+        'Concluída em', 
+        'Tempo de Espera (min)', 
+        'Tempo de Atendimento (min)'
+    ])
+
+    queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
+    
+    for p in passwords:
+        prefix = queue_tags.get(p.queue_type, 'N')
+        formatted_number = f"{prefix}{p.number:02d}"
+        
+        wait_min = ""
+        if p.called_at and p.created_at:
+            wait_min = round((p.called_at - p.created_at).total_seconds() / 60.0, 1)
+
+        attend_min = ""
+        if p.finished_at and p.called_at:
+            attend_min = round((p.finished_at - p.called_at).total_seconds() / 60.0, 1)
+
+        writer.writerow([
+            p.id,
+            p.date.strftime('%d/%m/%Y') if p.date else '',
+            formatted_number,
+            p.queue_type,
+            p.guiche if p.guiche else 'Não chamado',
+            p.status,
+            p.created_at.strftime('%H:%M:%S') if p.created_at else '',
+            p.called_at.strftime('%H:%M:%S') if p.called_at else '',
+            p.finished_at.strftime('%H:%M:%S') if p.finished_at else '',
+            str(wait_min).replace('.', ','), # Formatação decimal em português
+            str(attend_min).replace('.', ',')
+        ])
+
+    csv_data = output.getvalue().encode('utf-8')
+    output.close()
+
+    # Enviar E-mail usando a classe Zimbra
+    z = zimbra()
+    subject = f"Relatório de Atendimento - {clinic.name} - {period_label}"
+    filename = f"relatorio_{clinic.name.lower().replace(' ', '_')}_{period}.csv"
+    
+    # Destinatário padrão ou customizado
+    email_dest = recipient if recipient else 'yuri.flores@centraldeconsultas.med.br'
+    
+    sucesso = z.enviar_com_anexo(email_dest, subject, html_body, csv_data, filename)
+
+    if sucesso:
+        return jsonify({'message': 'E-mail enviado com sucesso'}), 200
+    else:
+        return jsonify({'error': 'Falha ao enviar e-mail'}), 500
+
 @app.route('/<int:clinic_id>/tablet')
 def tablet(clinic_id):
     """Renderiza a tela do tablet para geração de senhas."""
@@ -529,6 +868,30 @@ def handle_join(data):
         join_room(room)
         print(f"Painel conectado à sala {room}")
 
+@socketio.on('conclude_attendance')
+def conclude_attendance(data):
+    """Marca o atendimento atual como concluído."""
+    clinic_id = data.get('clinic_id')
+    guiche = data.get('guiche')
+
+    if not clinic_id or not guiche:
+        return
+
+    today = datetime.now(SAO_PAULO).date()
+    # Busca o atendimento ativo (CHAMADO) para este guichê nesta clínica hoje
+    active_password = Password.query.filter_by(
+        clinic_id=clinic_id,
+        guiche=guiche,
+        status='CHAMADO',
+        date=today
+    ).order_by(Password.called_at.desc()).first()
+
+    if active_password:
+        active_password.status = 'CONCLUIDO'
+        active_password.finished_at = datetime.now(SAO_PAULO)
+        db.session.commit()
+        print(f"Senha {active_password.number} no guichê {guiche} marcada como CONCLUIDA às {active_password.finished_at}")
+
 def limpar_audios_antigos(pasta, segundos=3600):
     """Remove arquivos da pasta com mais de 'segundos' de idade."""
     agora = time.time()
@@ -581,6 +944,19 @@ if __name__ == '__main__':
             except Exception as e:
                 db.session.rollback()
                 print(f"Erro ao adicionar coluna 'created_at': {e}")
+
+        # Garante que a coluna 'finished_at' existe na tabela 'password'
+        try:
+            db.session.execute(text("SELECT finished_at FROM password LIMIT 1;"))
+        except Exception:
+            db.session.rollback()
+            try:
+                db.session.execute(text("ALTER TABLE password ADD COLUMN finished_at TIMESTAMP;"))
+                db.session.commit()
+                print("Coluna 'finished_at' adicionada com sucesso à tabela 'password'.")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Erro ao adicionar coluna 'finished_at': {e}")
                 
         # Cria uma clínica padrão se não houver nenhuma
         if not Clinic.query.first():

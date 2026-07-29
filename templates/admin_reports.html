@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatórios de Atendimento - Painel</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/styleReports.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Header -->
+        <header id="main-header">
+            <div class="header-left">
+                <a href="/" class="btn-back"><i class="fas fa-arrow-left"></i> Voltar</a>
+                <h1><i class="fas fa-chart-line"></i> Relatórios de Atendimento</h1>
+            </div>
+            <div class="header-right">
+                <img id="clinic-logo" src="/static/logo_colored.png" alt="Logo da Clínica">
+            </div>
+        </header>
+
+        <!-- Filtros e Ações -->
+        <section class="filter-section">
+            <div class="filter-group">
+                <div class="input-wrapper">
+                    <label for="clinic-select"><i class="fas fa-clinic-medical"></i> Clínica:</label>
+                    <select id="clinic-select">
+                        {% for clinic in clinics %}
+                        <option value="{{ clinic.id }}">{{ clinic.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="input-wrapper">
+                    <label for="period-select"><i class="far fa-calendar-alt"></i> Período:</label>
+                    <select id="period-select">
+                        <option value="today" selected>Hoje</option>
+                        <option value="7days">Últimos 7 dias</option>
+                        <option value="30days">Último mês (30 dias)</option>
+                    </select>
+                </div>
+                <button id="btn-refresh" class="btn-primary"><i class="fas fa-sync-alt"></i> Atualizar</button>
+            </div>
+            
+            <div class="action-group">
+                <div class="email-input-wrapper">
+                    <input type="email" id="email-recipient" value="yuri.flores@centraldeconsultas.med.br" placeholder="email@destinatario.com">
+                    <button id="btn-send-email" class="btn-success"><i class="far fa-envelope"></i> Enviar por E-mail</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Mensagens de Feedback -->
+        <div id="toast-message" class="toast" style="display: none;"></div>
+
+        <!-- KPIs principais -->
+        <section class="kpi-container">
+            <div class="kpi-card card-generated">
+                <div class="kpi-icon"><i class="fas fa-ticket-alt"></i></div>
+                <div class="kpi-details">
+                    <h3>Senhas Geradas</h3>
+                    <p id="kpi-generated">0</p>
+                </div>
+            </div>
+            <div class="kpi-card card-called">
+                <div class="kpi-icon"><i class="fas fa-bullhorn"></i></div>
+                <div class="kpi-details">
+                    <h3>Senhas Chamadas</h3>
+                    <p id="kpi-called">0</p>
+                </div>
+            </div>
+            <div class="kpi-card card-wait">
+                <div class="kpi-icon"><i class="far fa-clock"></i></div>
+                <div class="kpi-details">
+                    <h3>Espera Média (Fila)</h3>
+                    <p><span id="kpi-wait">0.0</span> <small>min</small></p>
+                </div>
+            </div>
+            <div class="kpi-card card-attend">
+                <div class="kpi-icon"><i class="fas fa-user-md"></i></div>
+                <div class="kpi-details">
+                    <h3>Atendimento Médio</h3>
+                    <p><span id="kpi-attend">0.0</span> <small>min</small></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Detalhes por Categoria -->
+        <main class="reports-main">
+            <!-- Tabela Fila -->
+            <section class="report-table-box">
+                <h2><i class="fas fa-list-ol"></i> Desempenho por Tipo de Fila</h2>
+                <div class="table-responsive">
+                    <table id="queue-table">
+                        <thead>
+                            <tr>
+                                <th>Tipo de Fila</th>
+                                <th style="text-align: center;">Geradas</th>
+                                <th style="text-align: center;">Chamadas</th>
+                                <th style="text-align: center;">Concluídas</th>
+                                <th style="text-align: center;">Tempo Médio de Espera</th>
+                            </tr>
+                        </thead>
+                        <tbody id="queue-table-body">
+                            <tr>
+                                <td colspan="5" class="empty-table">Nenhum dado encontrado no período</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Tabela Guichê -->
+            <section class="report-table-box">
+                <h2><i class="fas fa-desktop"></i> Atendimentos por Guichê / Caixa</h2>
+                <div class="table-responsive">
+                    <table id="guiche-table">
+                        <thead>
+                            <tr>
+                                <th>Guichê</th>
+                                <th style="text-align: center;">Total Chamado</th>
+                                <th style="text-align: center;">Concluídos</th>
+                                <th style="text-align: center;">Tempo Médio de Atendimento</th>
+                            </tr>
+                        </thead>
+                        <tbody id="guiche-table-body">
+                            <tr>
+                                <td colspan="4" class="empty-table">Nenhum dado encontrado no período</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const clinicSelect = document.getElementById('clinic-select');
+        const periodSelect = document.getElementById('period-select');
+        const btnRefresh = document.getElementById('btn-refresh');
+        const btnSendEmail = document.getElementById('btn-send-email');
+        const emailRecipient = document.getElementById('email-recipient');
+        const toast = document.getElementById('toast-message');
+
+        function showToast(message, type = 'success') {
+            toast.textContent = message;
+            toast.className = `toast ${type}`;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 5000);
+        }
+
+        function loadReportsData() {
+            const clinicId = clinicSelect.value;
+            const period = periodSelect.value;
+
+            if (!clinicId) return;
+
+            btnRefresh.disabled = true;
+            btnRefresh.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
+
+            fetch(`/api/reports/data?clinic_id=${clinicId}&period=${period}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'error');
+                        return;
+                    }
+
+                    // Update KPIs
+                    document.getElementById('kpi-generated').textContent = data.total_generated;
+                    document.getElementById('kpi-called').textContent = data.total_called;
+                    document.getElementById('kpi-wait').textContent = data.avg_wait.toFixed(1);
+                    document.getElementById('kpi-attend').textContent = data.avg_attendance.toFixed(1);
+
+                    // Update Queue Table
+                    const queueBody = document.getElementById('queue-table-body');
+                    queueBody.innerHTML = '';
+                    if (data.queues.length === 0) {
+                        queueBody.innerHTML = '<tr><td colspan="5" class="empty-table">Nenhum dado encontrado no período</td></tr>';
+                    } else {
+                        data.queues.forEach(q => {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td><strong>${q.queue_type}</strong></td>
+                                <td style="text-align: center;">${q.total}</td>
+                                <td style="text-align: center;">${q.called}</td>
+                                <td style="text-align: center;">${q.finished}</td>
+                                <td style="text-align: center; color: var(--color-blue); font-weight: 600;">${q.avg_wait.toFixed(1)} min</td>
+                            `;
+                            queueBody.appendChild(tr);
+                        });
+                    }
+
+                    // Update Guiche Table
+                    const guicheBody = document.getElementById('guiche-table-body');
+                    guicheBody.innerHTML = '';
+                    if (data.guiches.length === 0) {
+                        guicheBody.innerHTML = '<tr><td colspan="4" class="empty-table">Nenhum dado encontrado no período</td></tr>';
+                    } else {
+                        data.guiches.forEach(g => {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td><strong>${g.guiche}</strong></td>
+                                <td style="text-align: center;">${g.total}</td>
+                                <td style="text-align: center;">${g.finished}</td>
+                                <td style="text-align: center; color: var(--color-gold); font-weight: 600;">${g.avg_attendance.toFixed(1)} min</td>
+                            `;
+                            guicheBody.appendChild(tr);
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.error("Erro ao carregar dados do relatório:", err);
+                    showToast("Erro ao conectar com o servidor.", "error");
+                })
+                .finally(() => {
+                    btnRefresh.disabled = false;
+                    btnRefresh.innerHTML = '<i class="fas fa-sync-alt"></i> Atualizar';
+                });
+        }
+
+        // Enviar relatório por E-mail
+        btnSendEmail.onclick = function() {
+            const clinicId = clinicSelect.value;
+            const period = periodSelect.value;
+            const recipient = emailRecipient.value.trim();
+
+            if (!clinicId) return;
+            if (!recipient) {
+                showToast("Por favor, preencha o destinatário do e-mail.", "error");
+                return;
+            }
+
+            btnSendEmail.disabled = true;
+            btnSendEmail.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+
+            fetch('/api/reports/send_email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    clinic_id: clinicId,
+                    period: period,
+                    recipient: recipient
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    showToast(data.error, 'error');
+                } else {
+                    showToast("Relatório enviado por e-mail com sucesso!");
+                }
+            })
+            .catch(err => {
+                console.error("Erro ao enviar e-mail:", err);
+                showToast("Erro ao conectar com o servidor para envio de e-mail.", "error");
+            })
+            .finally(() => {
+                btnSendEmail.disabled = false;
+                btnSendEmail.innerHTML = '<i class="far fa-envelope"></i> Enviar por E-mail';
+            });
+        };
+
+        // Eventos
+        btnRefresh.onclick = loadReportsData;
+        clinicSelect.onchange = loadReportsData;
+        periodSelect.onchange = loadReportsData;
+
+        // Carga Inicial
+        window.onload = loadReportsData;
+    </script>
+</body>
+</html>
