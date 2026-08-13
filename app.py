@@ -395,6 +395,34 @@ def calculate_local_report_data(clinic_id=1, period='today', month_str=''):
     else:
         passwords = base_query.all()
 
+    # Auto-conclusão inteligente por guichê: quando uma nova senha foi chamada no mesmo guichê,
+    # a anterior foi concluída naquele instante!
+    guiche_passwords = {}
+    for p in passwords:
+        if p.guiche and p.called_at:
+            g = str(p.guiche)
+            if g not in guiche_passwords:
+                guiche_passwords[g] = []
+            guiche_passwords[g].append(p)
+
+    has_updates = False
+    for g, g_passwords in guiche_passwords.items():
+        g_passwords.sort(key=lambda x: x.called_at if x.called_at else datetime.min)
+        for i in range(len(g_passwords) - 1):
+            curr_p = g_passwords[i]
+            next_p = g_passwords[i+1]
+            if curr_p.status in ('CHAMADO', 'CONCLUIDO') and next_p.called_at:
+                if not curr_p.finished_at or curr_p.status == 'CHAMADO':
+                    curr_p.status = 'CONCLUIDO'
+                    curr_p.finished_at = next_p.called_at
+                    has_updates = True
+
+    if has_updates:
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
     total_generated = len(passwords)
     total_called = sum(1 for p in passwords if p.status in ('CHAMADO', 'CONCLUIDO'))
     total_finished = sum(1 for p in passwords if p.status == 'CONCLUIDO')
@@ -973,6 +1001,20 @@ def call_any(data):
         return
 
     today = datetime.now(SAO_PAULO).date()
+    now = datetime.now(SAO_PAULO)
+
+    # Auto-conclui a senha anterior que estava em atendimento neste guichê
+    prev_active = Password.query.filter_by(
+        clinic_id=clinic_id,
+        guiche=guiche,
+        status='CHAMADO',
+        date=today
+    ).first()
+
+    if prev_active:
+        prev_active.status = 'CONCLUIDO'
+        prev_active.finished_at = now
+
     # Busca a próxima senha aguardando com o menor ID (ordem de chegada rigorosa)
     next_password = Password.query.filter_by(
         clinic_id=clinic_id, 
@@ -983,7 +1025,7 @@ def call_any(data):
     if next_password:
         next_password.status = 'CHAMADO'
         next_password.guiche = guiche
-        next_password.called_at = datetime.now(SAO_PAULO)
+        next_password.called_at = now
         db.session.commit()
 
         queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
@@ -998,6 +1040,7 @@ def call_any(data):
         # Notifica que a fila de espera mudou
         emit('queue_updated', {'clinic_id': clinic_id}, broadcast=True, room=f"clinic_{clinic_id}")
     else:
+        db.session.commit()
         emit('no_passwords', {'queue_type': 'TODAS'}, room=request.sid)
 
 @socketio.on('call_next')
@@ -1010,8 +1053,22 @@ def call_next(data):
     if not clinic_id or not guiche or not queue_type:
         return
 
-    # Busca a próxima senha aguardando para este tipo de fila
     today = datetime.now(SAO_PAULO).date()
+    now = datetime.now(SAO_PAULO)
+
+    # Auto-conclui a senha anterior que estava em atendimento neste guichê
+    prev_active = Password.query.filter_by(
+        clinic_id=clinic_id,
+        guiche=guiche,
+        status='CHAMADO',
+        date=today
+    ).first()
+
+    if prev_active:
+        prev_active.status = 'CONCLUIDO'
+        prev_active.finished_at = now
+
+    # Busca a próxima senha aguardando para este tipo de fila
     next_password = Password.query.filter_by(
         clinic_id=clinic_id, 
         queue_type=queue_type, 
@@ -1022,7 +1079,7 @@ def call_next(data):
     if next_password:
         next_password.status = 'CHAMADO'
         next_password.guiche = guiche
-        next_password.called_at = datetime.now(SAO_PAULO)
+        next_password.called_at = now
         db.session.commit()
 
         queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
@@ -1039,6 +1096,7 @@ def call_next(data):
         
         print(f"Password {next_password.number} ({queue_type}) called at guiche {guiche}")
     else:
+        db.session.commit()
         emit('no_passwords', {'queue_type': queue_type}, room=request.sid)
 
 
