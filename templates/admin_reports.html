@@ -177,21 +177,29 @@
             monthInput.value = `${curYear}-${curMonth}`;
         }
 
+        function formatDuration(minutes) {
+            const val = parseFloat(minutes) || 0;
+            if (val <= 0) return '0 min';
+            if (val < 60) {
+                return val.toFixed(1) + ' min';
+            }
+            const hours = Math.floor(val / 60);
+            const mins = Math.round(val % 60);
+            if (mins === 0) return hours + 'h';
+            return hours + 'h ' + (mins < 10 ? '0' : '') + mins + 'min';
+        }
+
         function loadReportsData() {
             const nodeId = clinicSelect.value;
             const period = periodSelect.value;
             const month = monthInput ? monthInput.value : '';
 
-            if (period === 'custom-month' && !month) {
-                return;
-            }
-
             btnRefresh.disabled = true;
             btnRefresh.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
 
-            let url = `/api/central/reports/data?node_id=${nodeId}&period=${period}`;
-            if (period === 'custom-month') {
-                url += `&month=${month}`;
+            let url = `/api/central/reports/data?node_id=${encodeURIComponent(nodeId)}&period=${encodeURIComponent(period)}`;
+            if (period === 'custom-month' && month) {
+                url += `&month=${encodeURIComponent(month)}`;
             }
 
             fetch(url)
@@ -205,8 +213,8 @@
                     // Update KPIs
                     document.getElementById('kpi-generated').textContent = data.total_generated;
                     document.getElementById('kpi-called').textContent = data.total_called;
-                    document.getElementById('kpi-wait').textContent = (data.avg_wait || 0).toFixed(1);
-                    document.getElementById('kpi-attend').textContent = (data.avg_attendance || 0).toFixed(1);
+                    document.getElementById('kpi-wait').textContent = formatDuration(data.avg_wait);
+                    document.getElementById('kpi-attend').textContent = formatDuration(data.avg_attendance);
 
                     // Update Clinics Cards Grid
                     const clinicsGrid = document.getElementById('clinics-grid');
@@ -249,14 +257,14 @@
                                         <i class="far fa-clock text-blue"></i>
                                         <div>
                                             <small>Espera Média</small>
-                                            <strong>${(c.avg_wait || 0).toFixed(1)} min</strong>
+                                            <strong>${formatDuration(c.avg_wait)}</strong>
                                         </div>
                                     </div>
                                     <div class="time-stat">
                                         <i class="fas fa-user-md text-gold"></i>
                                         <div>
                                             <small>Atendimento</small>
-                                            <strong>${(c.avg_attendance || 0).toFixed(1)} min</strong>
+                                            <strong>${formatDuration(c.avg_attendance)}</strong>
                                         </div>
                                     </div>
                                 </div>
@@ -278,7 +286,7 @@
                                 <td style="text-align: center;">${q.total}</td>
                                 <td style="text-align: center;">${q.called}</td>
                                 <td style="text-align: center;">${q.finished}</td>
-                                <td style="text-align: center; color: var(--color-blue); font-weight: 600;">${(q.avg_wait || 0).toFixed(1)} min</td>
+                                <td style="text-align: center; color: var(--color-blue); font-weight: 600;">${formatDuration(q.avg_wait)}</td>
                             `;
                             queueBody.appendChild(tr);
                         });
@@ -296,7 +304,7 @@
                                 <td><strong>${g.guiche}</strong></td>
                                 <td style="text-align: center;">${g.total}</td>
                                 <td style="text-align: center;">${g.finished}</td>
-                                <td style="text-align: center; color: var(--color-gold); font-weight: 600;">${(g.avg_attendance || 0).toFixed(1)} min</td>
+                                <td style="text-align: center; color: var(--color-gold); font-weight: 600;">${formatDuration(g.avg_attendance)}</td>
                             `;
                             guicheBody.appendChild(tr);
                         });

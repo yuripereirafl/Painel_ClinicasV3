@@ -774,6 +774,23 @@ def get_passwords_detail():
         })
     return jsonify(out)
 
+def format_duration(minutes):
+    try:
+        val = float(minutes)
+    except (ValueError, TypeError):
+        val = 0.0
+
+    if val <= 0:
+        return "0 min"
+    if val < 60:
+        return f"{round(val, 1)} min"
+
+    hours = int(val // 60)
+    mins = int(round(val % 60))
+    if mins == 0:
+        return f"{hours}h"
+    return f"{hours}h {mins:02d}min"
+
 @app.route('/api/reports/send_email', methods=['POST'])
 def send_report_email():
     data = request.json or {}
@@ -872,8 +889,8 @@ def send_report_email():
                 <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{r.get('total_generated', 0)}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{r.get('total_called', 0)}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{r.get('total_finished', 0)}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; color: #3E8FF7;">{r.get('avg_wait', 0.0)} min</td>
-                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; color: #F4B400;">{r.get('avg_attendance', 0.0)} min</td>
+                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; color: #3E8FF7;">{format_duration(r.get('avg_wait', 0.0))}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; color: #F4B400;">{format_duration(r.get('avg_attendance', 0.0))}</td>
             </tr>
             """
 
@@ -926,7 +943,7 @@ def send_report_email():
             <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">{q.get('queue_type')}</td>
             <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{q.get('total')}</td>
             <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{q.get('finished')}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{q.get('avg_wait')} min</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{format_duration(q.get('avg_wait'))}</td>
         </tr>
         """
 
@@ -937,7 +954,7 @@ def send_report_email():
             <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">{g.get('guiche')}</td>
             <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{g.get('total')}</td>
             <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{g.get('finished')}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{g.get('avg_attendance')} min</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{format_duration(g.get('avg_attendance'))}</td>
         </tr>
         """
 
@@ -985,11 +1002,11 @@ def send_report_email():
                 </tr>
                 <tr>
                     <td style="padding: 8px 0; color: #3E8FF7;"><strong>Tempo Médio de Espera (Fila):</strong></td>
-                    <td style="text-align: right; color: #3E8FF7;"><strong>{avg_wait} min</strong></td>
+                    <td style="text-align: right; color: #3E8FF7;"><strong>{format_duration(avg_wait)}</strong></td>
                 </tr>
                 <tr>
                     <td style="padding: 8px 0; color: #F4B400;"><strong>Tempo Médio de Guichê (Atendimento):</strong></td>
-                    <td style="text-align: right; color: #F4B400;"><strong>{avg_attend} min</strong></td>
+                    <td style="text-align: right; color: #F4B400;"><strong>{format_duration(avg_attend)}</strong></td>
                 </tr>
             </table>
 
