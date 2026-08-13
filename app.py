@@ -686,22 +686,19 @@ def get_central_reports_data():
 
 @app.route('/api/reports/send_email', methods=['POST'])
 def send_report_email():
-    data = request.json
-    clinic_id = data.get('clinic_id')
+    data = request.json or {}
+    node_id_param = str(data.get('node_id') or data.get('clinic_id') or 'all')
     period = data.get('period', 'today')
+    month_str = data.get('month', '')
     recipient = data.get('recipient')
 
-    if not clinic_id:
-        return jsonify({'error': 'clinic_id é obrigatório'}), 400
+    if not recipient:
+        return jsonify({'error': 'Destinatário do e-mail é obrigatório'}), 400
 
-    clinic = Clinic.query.get(clinic_id)
-    if not clinic:
-        return jsonify({'error': 'Clínica não encontrada'}), 404
-
-    # Determinar datas
+    nodes = get_clinic_nodes()
     today = datetime.now(SAO_PAULO).date()
+
     if period == 'today':
-        start_date = today
         period_label = f"Hoje ({today.strftime('%d/%m/%Y')})"
     elif period == '7days':
         start_date = today - timedelta(days=7)
@@ -709,91 +706,127 @@ def send_report_email():
     elif period == '30days':
         start_date = today - timedelta(days=30)
         period_label = f"Último mês ({start_date.strftime('%d/%m/%Y')} a {today.strftime('%d/%m/%Y')})"
+    elif period == 'custom-month' and month_str:
+        period_label = f"Mês {month_str}"
     else:
-        start_date = today
         period_label = f"Hoje ({today.strftime('%d/%m/%Y')})"
 
-    # Buscar senhas
-    passwords = Password.query.filter(
-        Password.clinic_id == clinic_id,
-        Password.date >= start_date
-    ).order_by(Password.id.asc()).all()
+    if node_id_param != 'all':
+        selected_node = next((n for n in nodes if str(n['id']) == str(node_id_param)), None)
+        clinic_name = selected_node['name'] if selected_node else "Clínica Local"
+        if selected_node:
+            report_data = fetch_single_node_data(selected_node, period, month_str)
+        else:
+            report_data = calculate_local_report_data(1, period, month_str)
+    else:
+        clinic_name = "Todas as Clínicas (Visão Centralizada)"
+        # Faz fetch centralizado de todas as clínicas
+        results = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(fetch_single_node_data, node, period, month_str): node for node in nodes}
+            for future in as_completed(futures):
+                try:
+                    res = future.result()
+                    results.append(res)
+                except Exception:
+                    pass
 
-    # Calcular KPIs resumidos
-    total_generated = len(passwords)
-    total_called = sum(1 for p in passwords if p.status in ('CHAMADO', 'CONCLUIDO'))
-    total_finished = sum(1 for p in passwords if p.status == 'CONCLUIDO')
+        results.sort(key=lambda x: x.get('node_id', 0))
 
-    wait_times = []
-    attendance_times = []
-    for p in passwords:
-        if p.called_at and p.created_at:
-            wait_times.append((p.called_at - p.created_at).total_seconds() / 60.0)
-        if p.finished_at and p.called_at:
-            attendance_times.append((p.finished_at - p.called_at).total_seconds() / 60.0)
+        total_gen = sum(r.get('total_generated', 0) for r in results)
+        total_call = sum(r.get('total_called', 0) for r in results)
+        total_fin = sum(r.get('total_finished', 0) for r in results)
+        
+        all_waits = []
+        all_attends = []
+        for r in results:
+            all_waits.extend(r.get('raw_wait_times', []))
+            all_attends.extend(r.get('raw_attendance_times', []))
 
-    avg_wait = round(sum(wait_times) / len(wait_times), 1) if wait_times else 0
-    avg_attend = round(sum(attendance_times) / len(attendance_times), 1) if attendance_times else 0
+        avg_w = round(sum(all_waits) / len(all_waits), 1) if all_waits else 0.0
+        avg_a = round(sum(all_attends) / len(all_attends), 1) if all_attends else 0.0
 
-    # Resumo por fila (HTML)
-    queue_summary = {}
-    for p in passwords:
-        q = p.queue_type
-        if q not in queue_summary:
-            queue_summary[q] = {'total': 0, 'finished': 0, 'wait_times': []}
-        queue_summary[q]['total'] += 1
-        if p.status == 'CONCLUIDO':
-            queue_summary[q]['finished'] += 1
-        if p.called_at and p.created_at:
-            queue_summary[q]['wait_times'].append((p.called_at - p.created_at).total_seconds() / 60.0)
+        # Constrói tabela HTML por clínica para o e-mail
+        clinics_rows_html = ""
+        for r in results:
+            st = "Online" if r.get('status') == 'online' else "Offline"
+            clinics_rows_html += f"""
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;"><strong>{r.get('name')}</strong></td>
+                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{st}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{r.get('total_generated', 0)}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{r.get('total_called', 0)}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{r.get('total_finished', 0)}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; color: #3E8FF7;">{r.get('avg_wait', 0.0)} min</td>
+                <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center; color: #F4B400;">{r.get('avg_attendance', 0.0)} min</td>
+            </tr>
+            """
 
+        report_data = {
+            'total_generated': total_gen,
+            'total_called': total_call,
+            'total_finished': total_fin,
+            'avg_wait': avg_w,
+            'avg_attendance': avg_a,
+            'queues': [],
+            'guiches': [],
+            'clinics_rows_html': clinics_rows_html
+        }
+
+    total_generated = report_data.get('total_generated', 0)
+    total_called = report_data.get('total_called', 0)
+    total_finished = report_data.get('total_finished', 0)
+    avg_wait = report_data.get('avg_wait', 0.0)
+    avg_attend = report_data.get('avg_attendance', 0.0)
+
+    # Queue Rows HTML
     queue_rows_html = ""
-    for q, stats in queue_summary.items():
-        w = stats['wait_times']
-        avg_w = round(sum(w) / len(w), 1) if w else 0
+    for q in report_data.get('queues', []):
         queue_rows_html += f"""
         <tr>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">{q}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{stats['total']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{stats['finished']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{avg_w} min</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">{q.get('queue_type')}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{q.get('total')}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{q.get('finished')}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{q.get('avg_wait')} min</td>
         </tr>
         """
 
-    # Resumo por guichê (HTML)
-    guiche_summary = {}
-    for p in passwords:
-        if not p.guiche:
-            continue
-        g = p.guiche
-        if g not in guiche_summary:
-            guiche_summary[g] = {'total': 0, 'finished': 0, 'attendance_times': []}
-        guiche_summary[g]['total'] += 1
-        if p.status == 'CONCLUIDO':
-            guiche_summary[g]['finished'] += 1
-        if p.finished_at and p.called_at:
-            guiche_summary[g]['attendance_times'].append((p.finished_at - p.called_at).total_seconds() / 60.0)
-
+    # Guiche Rows HTML
     guiche_rows_html = ""
-    for g, stats in guiche_summary.items():
-        a = stats['attendance_times']
-        avg_a = round(sum(a) / len(a), 1) if a else 0
+    for g in report_data.get('guiches', []):
         guiche_rows_html += f"""
         <tr>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">{g}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{stats['total']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{stats['finished']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{avg_a} min</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">{g.get('guiche')}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{g.get('total')}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{g.get('finished')}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{g.get('avg_attendance')} min</td>
         </tr>
         """
 
-    # Corpo do E-mail em HTML
+    clinics_table_section = f"""
+    <h3 style="color: #073A7A; margin-top: 25px;">Desempenho por Clínica</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+        <thead style="background: #f4f6f9;">
+            <tr>
+                <th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Clínica</th>
+                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Status</th>
+                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Geradas</th>
+                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Chamadas</th>
+                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Concluídas</th>
+                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Espera Média</th>
+                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Atendimento</th>
+            </tr>
+        </thead>
+        <tbody>{report_data.get('clinics_rows_html', '')}</tbody>
+    </table>
+    """ if 'clinics_rows_html' in report_data else ""
+
     html_body = f"""
     <html>
     <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; background-color: #f4f6f9; padding: 20px;">
-        <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); border-top: 8px solid #073A7A;">
+        <div style="max-width: 650px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); border-top: 8px solid #073A7A;">
             <h2 style="color: #073A7A; margin-top: 0;">Relatório de Atendimentos</h2>
-            <p><strong>Clínica:</strong> {clinic.name}</p>
+            <p><strong>Unidade:</strong> {clinic_name}</p>
             <p><strong>Período:</strong> {period_label}</p>
             
             <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
@@ -822,13 +855,11 @@ def send_report_email():
                 </tr>
             </table>
 
+            {clinics_table_section}
+
             {f'<h3 style="color: #073A7A;">Resumo por Tipo de Fila</h3><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead style="background: #f4f6f9;"><tr><th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Fila</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Geradas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Concluídas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Espera Média</th></tr></thead><tbody>{queue_rows_html}</tbody></table>' if queue_rows_html else ''}
             
             {f'<h3 style="color: #073A7A;">Resumo por Guichê</h3><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead style="background: #f4f6f9;"><tr><th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Guichê</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Chamadas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Concluídas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Tempo Médio</th></tr></thead><tbody>{guiche_rows_html}</tbody></table>' if guiche_rows_html else ''}
-            
-            <div style="background-color: #e7f3ff; color: #1d5287; padding: 15px; border-radius: 6px; margin-top: 20px; font-size: 14px;">
-                <strong>Nota:</strong> O relatório detalhado com cada uma das senhas, horários de criação, chamada e conclusão está anexado a este e-mail como arquivo <code>.csv</code>.
-            </div>
             
             <p style="font-size: 12px; color: #777; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; text-align: center;">
                 Painel de Senhas v3 - Gerador automático de relatórios
@@ -838,72 +869,26 @@ def send_report_email():
     </html>
     """
 
-    # Gerar a planilha CSV em memória (delimitada por ';' e com UTF-8 BOM para Excel)
+    z = zimbra()
+    subject = f"Relatório de Atendimento - {clinic_name} - {period_label}"
+    clinic_name_clean = "".join(c for c in unicodedata.normalize('NFKD', clinic_name) if not unicodedata.combining(c)).lower().replace(' ', '_')
+    filename = f"relatorio_{clinic_name_clean}_{period}.csv"
+    
+    # Gera arquivo CSV simples
     output = io.StringIO()
-    output.write('\ufeff') # UTF-8 BOM
+    output.write('\ufeff')
     writer = csv.writer(output, delimiter=';')
-    
-    # Cabeçalho da planilha
-    writer.writerow([
-        'ID da Senha', 
-        'Data', 
-        'Senha', 
-        'Tipo de Fila', 
-        'Guichê', 
-        'Status', 
-        'Gerada em', 
-        'Chamada em', 
-        'Concluída em', 
-        'Tempo de Espera (min)', 
-        'Tempo de Atendimento (min)'
-    ])
-
-    queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
-    
-    for p in passwords:
-        prefix = queue_tags.get(p.queue_type, 'N')
-        formatted_number = f"{prefix}{p.number:02d}"
-        
-        wait_min = ""
-        if p.called_at and p.created_at:
-            wait_min = round((p.called_at - p.created_at).total_seconds() / 60.0, 1)
-
-        attend_min = ""
-        if p.finished_at and p.called_at:
-            attend_min = round((p.finished_at - p.called_at).total_seconds() / 60.0, 1)
-
-        writer.writerow([
-            p.id,
-            p.date.strftime('%d/%m/%Y') if p.date else '',
-            formatted_number,
-            p.queue_type,
-            p.guiche if p.guiche else 'Não chamado',
-            p.status,
-            p.created_at.strftime('%H:%M:%S') if p.created_at else '',
-            p.called_at.strftime('%H:%M:%S') if p.called_at else '',
-            p.finished_at.strftime('%H:%M:%S') if p.finished_at else '',
-            str(wait_min).replace('.', ','), # Formatação decimal em português
-            str(attend_min).replace('.', ',')
-        ])
-
+    writer.writerow(['Unidade', 'Periodo', 'Geradas', 'Chamadas', 'Concluidas', 'Espera Media (min)', 'Atendimento Medio (min)'])
+    writer.writerow([clinic_name, period_label, total_generated, total_called, total_finished, str(avg_wait).replace('.', ','), str(avg_attend).replace('.', ',')])
     csv_data = output.getvalue().encode('utf-8')
     output.close()
 
-    # Enviar E-mail usando a classe Zimbra
-    z = zimbra()
-    subject = f"Relatório de Atendimento - {clinic.name} - {period_label}"
-    clinic_name_clean = "".join(c for c in unicodedata.normalize('NFKD', clinic.name) if not unicodedata.combining(c)).lower().replace(' ', '_')
-    filename = f"relatorio_{clinic_name_clean}_{period}.csv"
-    
-    # Destinatário padrão ou customizado
-    email_dest = recipient if recipient else 'yuri.flores@centraldeconsultas.med.br'
-    
-    sucesso = z.enviar_com_anexo(email_dest, subject, html_body, csv_data, filename)
+    sucesso = z.enviar_com_anexo(recipient, subject, html_body, csv_data, filename)
 
     if sucesso:
         return jsonify({'message': 'E-mail enviado com sucesso'}), 200
     else:
-        return jsonify({'error': 'Falha ao enviar e-mail'}), 500
+        return jsonify({'error': 'Falha ao enviar e-mail via servidor Zimbra'}), 500
 
 @app.route('/<int:clinic_id>/tablet')
 def tablet(clinic_id):
