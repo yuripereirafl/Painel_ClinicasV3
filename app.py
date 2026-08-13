@@ -497,6 +497,15 @@ def calculate_local_report_data(clinic_id=1, period='today', month_str=''):
             'avg_attendance': avg_a
         })
 
+    def get_guiche_sort_key(item):
+        val = item['guiche']
+        try:
+            return (0, int(val))
+        except (ValueError, TypeError):
+            return (1, str(val))
+    
+    guiche_list.sort(key=get_guiche_sort_key)
+
     return {
         'total_generated': total_generated,
         'total_called': total_called,
@@ -672,6 +681,15 @@ def get_central_reports_data():
             'finished': stats['finished'],
             'avg_attendance': aa
         })
+
+    def get_guiche_sort_key(item):
+        val = item['guiche']
+        try:
+            return (0, int(val))
+        except (ValueError, TypeError):
+            return (1, str(val))
+    
+    guiche_list.sort(key=get_guiche_sort_key)
 
     return jsonify({
         'is_central': True,
