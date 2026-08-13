@@ -1163,4 +1163,4 @@ if __name__ == '__main__':
             db.session.add(default_clinic)
             db.session.commit()
             print("Clínica padrão criada para testes.")
-    socketio.run(app, host="127.0.0.1", port=APP_PORT, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host="0.0.0.0", port=APP_PORT, debug=True, allow_unsafe_werkzeug=True)
