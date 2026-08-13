@@ -46,8 +46,8 @@ DEFAULT_CLINIC_NODES = [
     {
         "id": 6,
         "name": "Gravataí",
-        "ip": "192.168.14.75:5000",
-        "url": "http://192.168.14.75:5000",
+        "ip": "192.168.14.70:5000",
+        "url": "http://192.168.14.70:5000",
         "clinic_id": 1,
         "is_local": False
     },
