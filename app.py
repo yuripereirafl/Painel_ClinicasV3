@@ -13,13 +13,28 @@ import unicodedata
 from Zimbra import zimbra
 import glob
 import threading
-from escpos.printer import Network
+try:
+    from escpos.printer import Network
+except Exception:
+    Network = None
+from urllib.request import urlopen, Request
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from clinics_config import get_clinic_nodes
 
 SAO_PAULO = pytz.timezone('America/Sao_Paulo')
 
 # Lock para evitar que múltiplas threads tentem imprimir ao mesmo tempo
 # e sobrescrevam o arquivo temp_ticket.png simultaneamente.
 print_lock = threading.Lock()
+
+# Carrega variáveis do arquivo .env manualmente se ele existir
+if os.path.exists('.env'):
+    with open('.env') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, val = line.split('=', 1)
+                os.environ[key.strip()] = val.strip()
 
 app = Flask(__name__)
 
@@ -335,35 +350,44 @@ def get_called_today(clinic_id):
 
 @app.route('/admin/reports')
 def admin_reports():
-    """Renderiza a página de relatórios administrativos."""
+    """Renderiza a página de relatórios administrativos centralizados."""
     clinics = Clinic.query.all()
-    return render_template('admin_reports.html', clinics=clinics)
+    nodes = get_clinic_nodes()
+    return render_template('admin_reports.html', clinics=clinics, nodes=nodes)
 
-@app.route('/api/reports/data')
-def get_reports_data():
-    clinic_id = request.args.get('clinic_id', type=int)
-    period = request.args.get('period', 'today')
-
-    if not clinic_id:
-        return jsonify({'error': 'clinic_id é obrigatório'}), 400
-
+def calculate_local_report_data(clinic_id=1, period='today', month_str=''):
     today = datetime.now(SAO_PAULO).date()
     if period == 'today':
         start_date = today
+        end_date = today
     elif period == '7days':
         start_date = today - timedelta(days=7)
+        end_date = today
     elif period == '30days':
         start_date = today - timedelta(days=30)
+        end_date = today
+    elif period == 'custom-month' and month_str:
+        try:
+            year, month_num = map(int, month_str.split('-'))
+            start_date = datetime(year, month_num, 1).date()
+            if month_num == 12:
+                next_month = datetime(year + 1, 1, 1).date()
+            else:
+                next_month = datetime(year, month_num + 1, 1).date()
+            end_date = next_month - timedelta(days=1)
+        except Exception:
+            start_date = today
+            end_date = today
     else:
         start_date = today
+        end_date = today
 
-    # Busca as senhas filtradas por clínica e data de criação
     passwords = Password.query.filter(
         Password.clinic_id == clinic_id,
-        Password.date >= start_date
+        Password.date >= start_date,
+        Password.date <= end_date
     ).all()
 
-    # Cálculo dos KPIs principais
     total_generated = len(passwords)
     total_called = sum(1 for p in passwords if p.status in ('CHAMADO', 'CONCLUIDO'))
     total_finished = sum(1 for p in passwords if p.status == 'CONCLUIDO')
@@ -379,10 +403,9 @@ def get_reports_data():
             attend_min = (p.finished_at - p.called_at).total_seconds() / 60.0
             attendance_times.append(attend_min)
 
-    avg_wait = round(sum(wait_times) / len(wait_times), 1) if wait_times else 0
-    avg_attend = round(sum(attendance_times) / len(attendance_times), 1) if attendance_times else 0
+    avg_wait = round(sum(wait_times) / len(wait_times), 1) if wait_times else 0.0
+    avg_attend = round(sum(attendance_times) / len(attendance_times), 1) if attendance_times else 0.0
 
-    # Agrupamento por Tipo de Fila
     queue_summary = {}
     for p in passwords:
         q_type = p.queue_type
@@ -402,7 +425,7 @@ def get_reports_data():
     queue_list = []
     for q_type, stats in queue_summary.items():
         w_times = stats['wait_times']
-        avg_w = round(sum(w_times) / len(w_times), 1) if w_times else 0
+        avg_w = round(sum(w_times) / len(w_times), 1) if w_times else 0.0
         queue_list.append({
             'queue_type': q_type,
             'total': stats['total'],
@@ -411,7 +434,6 @@ def get_reports_data():
             'avg_wait': avg_w
         })
 
-    # Agrupamento por Guichê
     guiche_summary = {}
     for p in passwords:
         if not p.guiche:
@@ -431,7 +453,7 @@ def get_reports_data():
     guiche_list = []
     for g, stats in guiche_summary.items():
         a_times = stats['attendance_times']
-        avg_a = round(sum(a_times) / len(a_times), 1) if a_times else 0
+        avg_a = round(sum(a_times) / len(a_times), 1) if a_times else 0.0
         guiche_list.append({
             'guiche': g,
             'total': stats['total'],
@@ -439,14 +461,189 @@ def get_reports_data():
             'avg_attendance': avg_a
         })
 
-    return jsonify({
+    return {
         'total_generated': total_generated,
         'total_called': total_called,
         'total_finished': total_finished,
         'avg_wait': avg_wait,
         'avg_attendance': avg_attend,
         'queues': queue_list,
-        'guiches': guiche_list
+        'guiches': guiche_list,
+        'raw_wait_times': wait_times,
+        'raw_attendance_times': attendance_times
+    }
+
+def fetch_single_node_data(node, period='today', month_str=''):
+    """Busca os dados de relatórios de um nó (clínica)."""
+    node_id = node.get('id')
+    node_name = node.get('name')
+    node_ip = node.get('ip')
+    node_url = node.get('url')
+    clinic_id = node.get('clinic_id', 1)
+    is_local = node.get('is_local', False)
+
+    # Se for o nó local (mesma instância rodando), usa cálculo do BD direto
+    if is_local or '127.0.0.1' in node_url or 'localhost' in node_url:
+        try:
+            with app.app_context():
+                data = calculate_local_report_data(clinic_id, period, month_str)
+                data['node_id'] = node_id
+                data['name'] = node_name
+                data['ip'] = node_ip
+                data['status'] = 'online'
+                return data
+        except Exception as e:
+            print(f"Erro ao calcular dados locais para nó {node_name}: {e}")
+
+    # Para nós remotos via VPN, faz HTTP GET na API da clínica com timeout rápido (2.0s)
+    try:
+        clean_url = node_url.rstrip('/')
+        url = f"{clean_url}/api/reports/data?clinic_id={clinic_id}&period={period}"
+        if period == 'custom-month' and month_str:
+            url += f"&month={month_str}"
+
+        req = Request(url, headers={'User-Agent': 'PainelCentral/3.0'})
+        with urlopen(req, timeout=2.0) as resp:
+            if resp.status == 200:
+                body = resp.read().decode('utf-8')
+                data = json.loads(body)
+                data['node_id'] = node_id
+                data['name'] = node_name
+                data['ip'] = node_ip
+                data['status'] = 'online'
+                return data
+    except Exception as e:
+        print(f"Nó {node_name} ({node_ip}) inacessível/offline: {e}")
+
+    return {
+        'node_id': node_id,
+        'name': node_name,
+        'ip': node_ip,
+        'status': 'offline',
+        'total_generated': 0,
+        'total_called': 0,
+        'total_finished': 0,
+        'avg_wait': 0.0,
+        'avg_attendance': 0.0,
+        'queues': [],
+        'guiches': [],
+        'raw_wait_times': [],
+        'raw_attendance_times': []
+    }
+
+@app.route('/api/reports/data')
+def get_reports_data():
+    clinic_id = request.args.get('clinic_id', default=1, type=int)
+    period = request.args.get('period', 'today')
+    month = request.args.get('month', '')
+    data = calculate_local_report_data(clinic_id, period, month)
+    return jsonify(data)
+
+@app.route('/api/central/reports/data')
+def get_central_reports_data():
+    node_id_param = request.args.get('node_id', 'all')
+    period = request.args.get('period', 'today')
+    month_str = request.args.get('month', '')
+
+    nodes = get_clinic_nodes()
+
+    # Se selecionou um nó/clínica específica
+    if node_id_param != 'all':
+        selected_node = next((n for n in nodes if str(n['id']) == str(node_id_param)), None)
+        if selected_node:
+            node_data = fetch_single_node_data(selected_node, period, month_str)
+            return jsonify({
+                'is_central': False,
+                'total_generated': node_data.get('total_generated', 0),
+                'total_called': node_data.get('total_called', 0),
+                'total_finished': node_data.get('total_finished', 0),
+                'avg_wait': node_data.get('avg_wait', 0.0),
+                'avg_attendance': node_data.get('avg_attendance', 0.0),
+                'queues': node_data.get('queues', []),
+                'guiches': node_data.get('guiches', []),
+                'clinics_summary': [node_data]
+            })
+
+    # Caso seja 'all' (Todas as Clínicas - Visão Centralizada)
+    results = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(fetch_single_node_data, node, period, month_str): node for node in nodes}
+        for future in as_completed(futures):
+            try:
+                res = future.result()
+                results.append(res)
+            except Exception as e:
+                print(f"Erro ao buscar nó: {e}")
+
+    results.sort(key=lambda x: x.get('node_id', 0))
+
+    total_generated = sum(r.get('total_generated', 0) for r in results)
+    total_called = sum(r.get('total_called', 0) for r in results)
+    total_finished = sum(r.get('total_finished', 0) for r in results)
+
+    all_wait_times = []
+    all_attend_times = []
+    for r in results:
+        all_wait_times.extend(r.get('raw_wait_times', []))
+        all_attend_times.extend(r.get('raw_attendance_times', []))
+
+    avg_wait = round(sum(all_wait_times) / len(all_wait_times), 1) if all_wait_times else 0.0
+    avg_attend = round(sum(all_attend_times) / len(all_attend_times), 1) if all_attend_times else 0.0
+
+    combined_queues = {}
+    for r in results:
+        for q in r.get('queues', []):
+            qt = q['queue_type']
+            if qt not in combined_queues:
+                combined_queues[qt] = {'total': 0, 'called': 0, 'finished': 0, 'avg_waits': []}
+            combined_queues[qt]['total'] += q['total']
+            combined_queues[qt]['called'] += q['called']
+            combined_queues[qt]['finished'] += q['finished']
+            if 'avg_wait' in q and q['avg_wait'] > 0:
+                combined_queues[qt]['avg_waits'].append(q['avg_wait'])
+
+    queue_list = []
+    for qt, stats in combined_queues.items():
+        aw = round(sum(stats['avg_waits']) / len(stats['avg_waits']), 1) if stats['avg_waits'] else 0.0
+        queue_list.append({
+            'queue_type': qt,
+            'total': stats['total'],
+            'called': stats['called'],
+            'finished': stats['finished'],
+            'avg_wait': aw
+        })
+
+    combined_guiches = {}
+    for r in results:
+        for g in r.get('guiches', []):
+            gname = g['guiche']
+            if gname not in combined_guiches:
+                combined_guiches[gname] = {'total': 0, 'finished': 0, 'avg_attends': []}
+            combined_guiches[gname]['total'] += g['total']
+            combined_guiches[gname]['finished'] += g['finished']
+            if 'avg_attendance' in g and g['avg_attendance'] > 0:
+                combined_guiches[gname]['avg_attends'].append(g['avg_attendance'])
+
+    guiche_list = []
+    for gname, stats in combined_guiches.items():
+        aa = round(sum(stats['avg_attends']) / len(stats['avg_attends']), 1) if stats['avg_attends'] else 0.0
+        guiche_list.append({
+            'guiche': gname,
+            'total': stats['total'],
+            'finished': stats['finished'],
+            'avg_attendance': aa
+        })
+
+    return jsonify({
+        'is_central': True,
+        'total_generated': total_generated,
+        'total_called': total_called,
+        'total_finished': total_finished,
+        'avg_wait': avg_wait,
+        'avg_attendance': avg_attend,
+        'queues': queue_list,
+        'guiches': guiche_list,
+        'clinics_summary': results
     })
 
 @app.route('/api/reports/send_email', methods=['POST'])
@@ -966,4 +1163,4 @@ if __name__ == '__main__':
             db.session.add(default_clinic)
             db.session.commit()
             print("Clínica padrão criada para testes.")
-    socketio.run(app, host="0.0.0.0", port=APP_PORT, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host="127.0.0.1", port=APP_PORT, debug=True, allow_unsafe_werkzeug=True)

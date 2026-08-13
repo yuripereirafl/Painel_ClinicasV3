@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatórios de Atendimento - Painel</title>
+    <title>Relatórios de Atendimento - Painel Centralizado</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/styleReports.css">
 </head>
@@ -16,6 +16,9 @@
                 <h1><i class="fas fa-chart-line"></i> Relatórios de Atendimento</h1>
             </div>
             <div class="header-right">
+                <div class="live-badge">
+                    <span class="pulse-dot"></span> AO VIVO
+                </div>
                 <img id="clinic-logo" src="/static/logo_colored.png" alt="Logo da Clínica">
             </div>
         </header>
@@ -26,8 +29,9 @@
                 <div class="input-wrapper">
                     <label for="clinic-select"><i class="fas fa-clinic-medical"></i> Clínica:</label>
                     <select id="clinic-select">
-                        {% for clinic in clinics %}
-                        <option value="{{ clinic.id }}">{{ clinic.name }}</option>
+                        <option value="all" selected>Todas as Clínicas (Visão Centralizada)</option>
+                        {% for node in nodes %}
+                        <option value="{{ node.id }}">{{ node.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -87,6 +91,14 @@
                     <h3>Atendimento Médio</h3>
                     <p><span id="kpi-attend">0.0</span> <small>min</small></p>
                 </div>
+            </div>
+        </section>
+
+        <!-- Seção de Desempenho por Clínica (Grid de Cards) -->
+        <section class="report-cards-section" id="clinics-summary-section">
+            <h2><i class="fas fa-clinic-medical"></i> Desempenho por Clínica</h2>
+            <div id="clinics-grid" class="clinics-cards-grid">
+                <div class="empty-table" style="grid-column: 1 / -1; background: #fff; border-radius: 12px; border: 1px solid var(--border-color);">Carregando dados das clínicas...</div>
             </div>
         </section>
 
@@ -166,7 +178,7 @@
         }
 
         function loadReportsData() {
-            const clinicId = clinicSelect.value;
+            const nodeId = clinicSelect.value;
             const period = periodSelect.value;
             const month = monthInput ? monthInput.value : '';
 
@@ -174,12 +186,10 @@
                 return;
             }
 
-            if (!clinicId) return;
-
             btnRefresh.disabled = true;
             btnRefresh.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
 
-            let url = `/api/reports/data?clinic_id=${clinicId}&period=${period}`;
+            let url = `/api/central/reports/data?node_id=${nodeId}&period=${period}`;
             if (period === 'custom-month') {
                 url += `&month=${month}`;
             }
@@ -195,13 +205,70 @@
                     // Update KPIs
                     document.getElementById('kpi-generated').textContent = data.total_generated;
                     document.getElementById('kpi-called').textContent = data.total_called;
-                    document.getElementById('kpi-wait').textContent = data.avg_wait.toFixed(1);
-                    document.getElementById('kpi-attend').textContent = data.avg_attendance.toFixed(1);
+                    document.getElementById('kpi-wait').textContent = (data.avg_wait || 0).toFixed(1);
+                    document.getElementById('kpi-attend').textContent = (data.avg_attendance || 0).toFixed(1);
+
+                    // Update Clinics Cards Grid
+                    const clinicsGrid = document.getElementById('clinics-grid');
+                    clinicsGrid.innerHTML = '';
+                    if (!data.clinics_summary || data.clinics_summary.length === 0) {
+                        clinicsGrid.innerHTML = '<div class="empty-table" style="grid-column: 1 / -1; background: #fff; border-radius: 12px; border: 1px solid var(--border-color);">Nenhuma clínica encontrada</div>';
+                    } else {
+                        data.clinics_summary.forEach(c => {
+                            const isOnline = c.status === 'online';
+                            const statusBadge = isOnline 
+                                ? `<span class="badge badge-online"><i class="fas fa-check-circle"></i> Online</span>`
+                                : `<span class="badge badge-offline"><i class="fas fa-exclamation-triangle"></i> Offline</span>`;
+                            
+                            const card = document.createElement('div');
+                            card.className = `clinic-card ${isOnline ? 'online' : 'offline'}`;
+                            card.innerHTML = `
+                                <div class="clinic-card-header">
+                                    <div class="clinic-card-title">
+                                        <i class="fas fa-hospital-user"></i>
+                                        <h3>${c.name}</h3>
+                                    </div>
+                                    ${statusBadge}
+                                </div>
+                                <div class="clinic-card-metrics">
+                                    <div class="metric-item">
+                                        <span class="metric-label">Geradas</span>
+                                        <span class="metric-value">${c.total_generated || 0}</span>
+                                    </div>
+                                    <div class="metric-item">
+                                        <span class="metric-label">Chamadas</span>
+                                        <span class="metric-value">${c.total_called || 0}</span>
+                                    </div>
+                                    <div class="metric-item">
+                                        <span class="metric-label">Concluídas</span>
+                                        <span class="metric-value">${c.total_finished || 0}</span>
+                                    </div>
+                                </div>
+                                <div class="clinic-card-footer">
+                                    <div class="time-stat">
+                                        <i class="far fa-clock text-blue"></i>
+                                        <div>
+                                            <small>Espera Média</small>
+                                            <strong>${(c.avg_wait || 0).toFixed(1)} min</strong>
+                                        </div>
+                                    </div>
+                                    <div class="time-stat">
+                                        <i class="fas fa-user-md text-gold"></i>
+                                        <div>
+                                            <small>Atendimento</small>
+                                            <strong>${(c.avg_attendance || 0).toFixed(1)} min</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            clinicsGrid.appendChild(card);
+                        });
+                    }
 
                     // Update Queue Table
                     const queueBody = document.getElementById('queue-table-body');
                     queueBody.innerHTML = '';
-                    if (data.queues.length === 0) {
+                    if (!data.queues || data.queues.length === 0) {
                         queueBody.innerHTML = '<tr><td colspan="5" class="empty-table">Nenhum dado encontrado no período</td></tr>';
                     } else {
                         data.queues.forEach(q => {
@@ -211,7 +278,7 @@
                                 <td style="text-align: center;">${q.total}</td>
                                 <td style="text-align: center;">${q.called}</td>
                                 <td style="text-align: center;">${q.finished}</td>
-                                <td style="text-align: center; color: var(--color-blue); font-weight: 600;">${q.avg_wait.toFixed(1)} min</td>
+                                <td style="text-align: center; color: var(--color-blue); font-weight: 600;">${(q.avg_wait || 0).toFixed(1)} min</td>
                             `;
                             queueBody.appendChild(tr);
                         });
@@ -220,7 +287,7 @@
                     // Update Guiche Table
                     const guicheBody = document.getElementById('guiche-table-body');
                     guicheBody.innerHTML = '';
-                    if (data.guiches.length === 0) {
+                    if (!data.guiches || data.guiches.length === 0) {
                         guicheBody.innerHTML = '<tr><td colspan="4" class="empty-table">Nenhum dado encontrado no período</td></tr>';
                     } else {
                         data.guiches.forEach(g => {
@@ -229,7 +296,7 @@
                                 <td><strong>${g.guiche}</strong></td>
                                 <td style="text-align: center;">${g.total}</td>
                                 <td style="text-align: center;">${g.finished}</td>
-                                <td style="text-align: center; color: var(--color-gold); font-weight: 600;">${g.avg_attendance.toFixed(1)} min</td>
+                                <td style="text-align: center; color: var(--color-gold); font-weight: 600;">${(g.avg_attendance || 0).toFixed(1)} min</td>
                             `;
                             guicheBody.appendChild(tr);
                         });
@@ -247,12 +314,11 @@
 
         // Enviar relatório por E-mail
         btnSendEmail.onclick = function() {
-            const clinicId = clinicSelect.value;
+            const nodeId = clinicSelect.value;
             const period = periodSelect.value;
             const month = monthInput ? monthInput.value : '';
             const recipient = emailRecipient.value.trim();
 
-            if (!clinicId) return;
             if (!recipient) {
                 showToast("Por favor, preencha o destinatário do e-mail.", "error");
                 return;
@@ -262,7 +328,7 @@
             btnSendEmail.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
 
             const payload = {
-                clinic_id: clinicId,
+                node_id: nodeId,
                 period: period,
                 recipient: recipient
             };
