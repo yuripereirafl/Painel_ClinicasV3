@@ -58,6 +58,14 @@ DEFAULT_CLINIC_NODES = [
         "url": "http://192.168.11.75:5000",
         "clinic_id": 3,
         "is_local": False
+    },
+    {
+        "id": 8,
+        "name": "Assis Brasil 3277",
+        "ip": "192.168.5.56:5000",
+        "url": "http://192.168.5.56:5000",
+        "clinic_id": 3,
+        "is_local": False
     }
 ]
 
