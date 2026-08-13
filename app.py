@@ -382,11 +382,18 @@ def calculate_local_report_data(clinic_id=1, period='today', month_str=''):
         start_date = today
         end_date = today
 
-    passwords = Password.query.filter(
-        Password.clinic_id == clinic_id,
+    # Busca as senhas no banco local
+    base_query = Password.query.filter(
         Password.date >= start_date,
         Password.date <= end_date
-    ).all()
+    )
+
+    # Se houver senhas cadastradas para o clinic_id específico, usa ele.
+    # Caso contrário, recupera todas as senhas locais do período (para bancos com 1 clínica)
+    if clinic_id and base_query.filter(Password.clinic_id == clinic_id).first():
+        passwords = base_query.filter(Password.clinic_id == clinic_id).all()
+    else:
+        passwords = base_query.all()
 
     total_generated = len(passwords)
     total_called = sum(1 for p in passwords if p.status in ('CHAMADO', 'CONCLUIDO'))
@@ -482,8 +489,12 @@ def fetch_single_node_data(node, period='today', month_str=''):
     clinic_id = node.get('clinic_id', 1)
     is_local = node.get('is_local', False)
 
+    # Identificação flexível de nó local (via env LOCAL_NODE_ID, DEFAULT_CLINIC_ID ou IP/host)
+    local_node_id = int(os.getenv('LOCAL_NODE_ID', 0))
+    clean_url = node_url.rstrip('/') if node_url else ''
+
     # Se for o nó local (mesma instância rodando), usa cálculo do BD direto
-    if is_local or '127.0.0.1' in node_url or 'localhost' in node_url:
+    if is_local or node_id == local_node_id or '127.0.0.1' in clean_url or 'localhost' in clean_url:
         try:
             with app.app_context():
                 data = calculate_local_report_data(clinic_id, period, month_str)
@@ -495,15 +506,14 @@ def fetch_single_node_data(node, period='today', month_str=''):
         except Exception as e:
             print(f"Erro ao calcular dados locais para nó {node_name}: {e}")
 
-    # Para nós remotos via VPN, faz HTTP GET na API da clínica com timeout rápido (2.0s)
+    # Para nós remotos via VPN, faz HTTP GET na API da clínica com timeout de 4.0s
     try:
-        clean_url = node_url.rstrip('/')
         url = f"{clean_url}/api/reports/data?clinic_id={clinic_id}&period={period}"
         if period == 'custom-month' and month_str:
             url += f"&month={month_str}"
 
         req = Request(url, headers={'User-Agent': 'PainelCentral/3.0'})
-        with urlopen(req, timeout=2.0) as resp:
+        with urlopen(req, timeout=4.0) as resp:
             if resp.status == 200:
                 body = resp.read().decode('utf-8')
                 data = json.loads(body)
