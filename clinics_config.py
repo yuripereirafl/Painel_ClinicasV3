@@ -24,7 +24,7 @@ DEFAULT_CLINIC_NODES = [
         "name": "Cachoeirinha",
         "ip": "192.168.7.75:5000",
         "url": "http://192.168.7.75:5000",
-        "clinic_id": 1,
+        "clinic_id": 3,
         "is_local": False
     },
     {
