@@ -684,6 +684,96 @@ def get_central_reports_data():
         'clinics_summary': results
     })
 
+def get_local_passwords_list(clinic_id=1, period='today', month_str=''):
+    today = datetime.now(SAO_PAULO).date()
+    if period == 'today':
+        start_date = today
+        end_date = today
+    elif period == '7days':
+        start_date = today - timedelta(days=7)
+        end_date = today
+    elif period == '30days':
+        start_date = today - timedelta(days=30)
+        end_date = today
+    elif period == 'custom-month' and month_str:
+        try:
+            year, month_num = map(int, month_str.split('-'))
+            start_date = datetime(year, month_num, 1).date()
+            if month_num == 12:
+                next_month = datetime(year + 1, 1, 1).date()
+            else:
+                next_month = datetime(year, month_num + 1, 1).date()
+            end_date = next_month - timedelta(days=1)
+        except Exception:
+            start_date = today
+            end_date = today
+    else:
+        start_date = today
+        end_date = today
+
+    base_query = Password.query.filter(
+        Password.date >= start_date,
+        Password.date <= end_date
+    )
+
+    if clinic_id and base_query.filter(Password.clinic_id == clinic_id).first():
+        passwords = base_query.filter(Password.clinic_id == clinic_id).order_by(Password.id.asc()).all()
+    else:
+        passwords = base_query.order_by(Password.id.asc()).all()
+
+    guiche_passwords = {}
+    for p in passwords:
+        if p.guiche and p.called_at:
+            g = str(p.guiche)
+            if g not in guiche_passwords:
+                guiche_passwords[g] = []
+            guiche_passwords[g].append(p)
+
+    has_updates = False
+    for g, g_passwords in guiche_passwords.items():
+        g_passwords.sort(key=lambda x: x.called_at if x.called_at else datetime.min)
+        for i in range(len(g_passwords) - 1):
+            curr_p = g_passwords[i]
+            next_p = g_passwords[i+1]
+            if curr_p.status in ('CHAMADO', 'CONCLUIDO') and next_p.called_at:
+                if not curr_p.finished_at or curr_p.status == 'CHAMADO':
+                    curr_p.status = 'CONCLUIDO'
+                    curr_p.finished_at = next_p.called_at
+                    has_updates = True
+
+    if has_updates:
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    return passwords
+
+@app.route('/api/reports/passwords_detail')
+def get_passwords_detail():
+    clinic_id = request.args.get('clinic_id', default=1, type=int)
+    period = request.args.get('period', 'today')
+    month = request.args.get('month', '')
+    passwords = get_local_passwords_list(clinic_id, period, month)
+    queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
+    out = []
+    for p in passwords:
+        prefix = queue_tags.get(p.queue_type, 'N')
+        out.append({
+            'id': p.id,
+            'date': p.date.strftime('%d/%m/%Y') if p.date else '',
+            'ticket': f"{prefix}{p.number:02d}",
+            'queue_type': p.queue_type,
+            'guiche': p.guiche if p.guiche else '',
+            'status': p.status,
+            'created_at': p.created_at.strftime('%H:%M:%S') if p.created_at else '',
+            'called_at': p.called_at.strftime('%H:%M:%S') if p.called_at else '',
+            'finished_at': p.finished_at.strftime('%H:%M:%S') if p.finished_at else '',
+            'wait_min': round((p.called_at - p.created_at).total_seconds() / 60.0, 1) if p.called_at and p.created_at else None,
+            'attend_min': round((p.finished_at - p.called_at).total_seconds() / 60.0, 1) if p.finished_at and p.called_at else None
+        })
+    return jsonify(out)
+
 @app.route('/api/reports/send_email', methods=['POST'])
 def send_report_email():
     data = request.json or {}
@@ -711,16 +801,42 @@ def send_report_email():
     else:
         period_label = f"Hoje ({today.strftime('%d/%m/%Y')})"
 
+    all_passwords_for_csv = []
+
     if node_id_param != 'all':
         selected_node = next((n for n in nodes if str(n['id']) == str(node_id_param)), None)
         clinic_name = selected_node['name'] if selected_node else "Clínica Local"
         if selected_node:
             report_data = fetch_single_node_data(selected_node, period, month_str)
+            # Busca lista detalhada do nó
+            node_url = selected_node.get('url', '').rstrip('/')
+            node_id = selected_node.get('id')
+            local_node_id = int(os.getenv('LOCAL_NODE_ID', 0))
+            if selected_node.get('is_local') or node_id == local_node_id or '127.0.0.1' in node_url or 'localhost' in node_url:
+                local_pwds = get_local_passwords_list(selected_node.get('clinic_id', 1), period, month_str)
+                for p in local_pwds:
+                    all_passwords_for_csv.append((p, clinic_name))
+            else:
+                try:
+                    url = f"{node_url}/api/reports/passwords_detail?clinic_id={selected_node.get('clinic_id', 1)}&period={period}"
+                    if period == 'custom-month' and month_str:
+                        url += f"&month={month_str}"
+                    req = Request(url, headers={'User-Agent': 'PainelCentral/3.0'})
+                    with urlopen(req, timeout=4.0) as resp:
+                        if resp.status == 200:
+                            data_list = json.loads(resp.read().decode('utf-8'))
+                            for d in data_list:
+                                d['unit_name'] = clinic_name
+                                all_passwords_for_csv.append((d, clinic_name))
+                except Exception as e:
+                    print(f"Erro ao buscar CSV remoto de {clinic_name}: {e}")
         else:
             report_data = calculate_local_report_data(1, period, month_str)
+            local_pwds = get_local_passwords_list(1, period, month_str)
+            for p in local_pwds:
+                all_passwords_for_csv.append((p, clinic_name))
     else:
         clinic_name = "Todas as Clínicas (Visão Centralizada)"
-        # Faz fetch centralizado de todas as clínicas
         results = []
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(fetch_single_node_data, node, period, month_str): node for node in nodes}
@@ -746,7 +862,6 @@ def send_report_email():
         avg_w = round(sum(all_waits) / len(all_waits), 1) if all_waits else 0.0
         avg_a = round(sum(all_attends) / len(all_attends), 1) if all_attends else 0.0
 
-        # Constrói tabela HTML por clínica para o e-mail
         clinics_rows_html = ""
         for r in results:
             st = "Online" if r.get('status') == 'online' else "Offline"
@@ -773,13 +888,37 @@ def send_report_email():
             'clinics_rows_html': clinics_rows_html
         }
 
+        # Coleta os registros detalhados de todas as clínicas para o CSV centralizado
+        local_node_id = int(os.getenv('LOCAL_NODE_ID', 0))
+        for node in nodes:
+            c_name = node.get('name')
+            node_url = node.get('url', '').rstrip('/')
+            node_id = node.get('id')
+            if node.get('is_local') or node_id == local_node_id or '127.0.0.1' in node_url or 'localhost' in node_url:
+                local_pwds = get_local_passwords_list(node.get('clinic_id', 1), period, month_str)
+                for p in local_pwds:
+                    all_passwords_for_csv.append((p, c_name))
+            else:
+                try:
+                    url = f"{node_url}/api/reports/passwords_detail?clinic_id={node.get('clinic_id', 1)}&period={period}"
+                    if period == 'custom-month' and month_str:
+                        url += f"&month={month_str}"
+                    req = Request(url, headers={'User-Agent': 'PainelCentral/3.0'})
+                    with urlopen(req, timeout=4.0) as resp:
+                        if resp.status == 200:
+                            data_list = json.loads(resp.read().decode('utf-8'))
+                            for d in data_list:
+                                d['unit_name'] = c_name
+                                all_passwords_for_csv.append((d, c_name))
+                except Exception as e:
+                    print(f"Erro ao buscar CSV de {c_name}: {e}")
+
     total_generated = report_data.get('total_generated', 0)
     total_called = report_data.get('total_called', 0)
     total_finished = report_data.get('total_finished', 0)
     avg_wait = report_data.get('avg_wait', 0.0)
     avg_attend = report_data.get('avg_attendance', 0.0)
 
-    # Queue Rows HTML
     queue_rows_html = ""
     for q in report_data.get('queues', []):
         queue_rows_html += f"""
@@ -791,7 +930,6 @@ def send_report_email():
         </tr>
         """
 
-    # Guiche Rows HTML
     guiche_rows_html = ""
     for g in report_data.get('guiches', []):
         guiche_rows_html += f"""
@@ -861,6 +999,10 @@ def send_report_email():
             
             {f'<h3 style="color: #073A7A;">Resumo por Guichê</h3><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead style="background: #f4f6f9;"><tr><th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Guichê</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Chamadas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Concluídas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Tempo Médio</th></tr></thead><tbody>{guiche_rows_html}</tbody></table>' if guiche_rows_html else ''}
             
+            <div style="background-color: #e7f3ff; color: #1d5287; padding: 15px; border-radius: 6px; margin-top: 20px; font-size: 14px;">
+                <strong>Nota:</strong> O relatório detalhado com cada uma das senhas, horários de criação, chamada e conclusão está anexado a este e-mail como arquivo <code>.csv</code>.
+            </div>
+
             <p style="font-size: 12px; color: #777; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; text-align: center;">
                 Painel de Senhas v3 - Gerador automático de relatórios
             </p>
@@ -874,12 +1016,60 @@ def send_report_email():
     clinic_name_clean = "".join(c for c in unicodedata.normalize('NFKD', clinic_name) if not unicodedata.combining(c)).lower().replace(' ', '_')
     filename = f"relatorio_{clinic_name_clean}_{period}.csv"
     
-    # Gera arquivo CSV simples
+    # Gera o CSV Detalhado com as 12 colunas da imagem do usuário
     output = io.StringIO()
-    output.write('\ufeff')
+    output.write('\ufeff') # BOM do Excel UTF-8
     writer = csv.writer(output, delimiter=';')
-    writer.writerow(['Unidade', 'Periodo', 'Geradas', 'Chamadas', 'Concluidas', 'Espera Media (min)', 'Atendimento Medio (min)'])
-    writer.writerow([clinic_name, period_label, total_generated, total_called, total_finished, str(avg_wait).replace('.', ','), str(avg_attend).replace('.', ',')])
+    
+    writer.writerow([
+        'Unidade',
+        'ID da Senha',
+        'Data',
+        'Senha',
+        'Tipo de Fila',
+        'Guichê',
+        'Status',
+        'Gerada em',
+        'Chamada em',
+        'Concluída em',
+        'Tempo de Espera (min)',
+        'Tempo de Atendimento (min)'
+    ])
+
+    queue_tags = {'NORMAL': 'N', 'PRIORITARIA': 'P', 'DR_CENTRAL': 'D', 'ODONTO': 'O'}
+
+    for item, unit_n in all_passwords_for_csv:
+        if isinstance(item, dict):
+            p_id = item.get('id', '')
+            p_date = item.get('date', '')
+            p_ticket = item.get('ticket', '')
+            p_queue = item.get('queue_type', '')
+            p_guiche = item.get('guiche', '')
+            p_status = item.get('status', '')
+            p_created = item.get('created_at', '')
+            p_called = item.get('called_at', '')
+            p_finished = item.get('finished_at', '')
+            p_wait = str(item.get('wait_min', '')).replace('.', ',') if item.get('wait_min') is not None else ''
+            p_attend = str(item.get('attend_min', '')).replace('.', ',') if item.get('attend_min') is not None else ''
+        else:
+            p = item
+            p_id = p.id
+            p_date = p.date.strftime('%d/%m/%Y') if p.date else ''
+            prefix = queue_tags.get(p.queue_type, 'N')
+            p_ticket = f"{prefix}{p.number:02d}"
+            p_queue = p.queue_type
+            p_guiche = p.guiche if p.guiche else ''
+            p_status = p.status
+            p_created = p.created_at.strftime('%H:%M:%S') if p.created_at else ''
+            p_called = p.called_at.strftime('%H:%M:%S') if p.called_at else ''
+            p_finished = p.finished_at.strftime('%H:%M:%S') if p.finished_at else ''
+            p_wait = str(round((p.called_at - p.created_at).total_seconds() / 60.0, 1)).replace('.', ',') if p.called_at and p.created_at else ''
+            p_attend = str(round((p.finished_at - p.called_at).total_seconds() / 60.0, 1)).replace('.', ',') if p.finished_at and p.called_at else ''
+
+        writer.writerow([
+            unit_n, p_id, p_date, p_ticket, p_queue, p_guiche, p_status, p_created, p_called, p_finished, p_wait, p_attend
+        ])
+
     csv_data = output.getvalue().encode('utf-8')
     output.close()
 
