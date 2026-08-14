@@ -30,7 +30,7 @@ print_lock = threading.Lock()
 
 # Carrega variáveis do arquivo .env manualmente se ele existir
 if os.path.exists('.env'):
-    with open('.env') as f:
+    with open('.env', encoding='utf-8-sig') as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith('#') and '=' in line:
