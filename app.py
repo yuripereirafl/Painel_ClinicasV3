@@ -600,6 +600,9 @@ def get_central_reports_data():
         selected_node = next((n for n in nodes if str(n['id']) == str(node_id_param)), None)
         if selected_node:
             node_data = fetch_single_node_data(selected_node, period, month_str)
+            guiches = node_data.get('guiches', [])
+            for g in guiches:
+                g['clinic_name'] = selected_node.get('name', 'Clínica')
             return jsonify({
                 'is_central': False,
                 'total_generated': node_data.get('total_generated', 0),
@@ -608,7 +611,7 @@ def get_central_reports_data():
                 'avg_wait': node_data.get('avg_wait', 0.0),
                 'avg_attendance': node_data.get('avg_attendance', 0.0),
                 'queues': node_data.get('queues', []),
-                'guiches': node_data.get('guiches', []),
+                'guiches': guiches,
                 'clinics_summary': [node_data]
             })
 
@@ -663,31 +666,35 @@ def get_central_reports_data():
 
     combined_guiches = {}
     for r in results:
+        clinic_name = r.get('name', 'Desconhecida')
         for g in r.get('guiches', []):
             gname = g['guiche']
-            if gname not in combined_guiches:
-                combined_guiches[gname] = {'total': 0, 'finished': 0, 'avg_attends': []}
-            combined_guiches[gname]['total'] += g['total']
-            combined_guiches[gname]['finished'] += g['finished']
+            key = f"{clinic_name} - {gname}"
+            if key not in combined_guiches:
+                combined_guiches[key] = {'guiche': gname, 'clinic_name': clinic_name, 'total': 0, 'finished': 0, 'avg_attends': []}
+            combined_guiches[key]['total'] += g['total']
+            combined_guiches[key]['finished'] += g['finished']
             if 'avg_attendance' in g and g['avg_attendance'] > 0:
-                combined_guiches[gname]['avg_attends'].append(g['avg_attendance'])
+                combined_guiches[key]['avg_attends'].append(g['avg_attendance'])
 
     guiche_list = []
-    for gname, stats in combined_guiches.items():
+    for key, stats in combined_guiches.items():
         aa = round(sum(stats['avg_attends']) / len(stats['avg_attends']), 1) if stats['avg_attends'] else 0.0
         guiche_list.append({
-            'guiche': gname,
+            'guiche': stats['guiche'],
+            'clinic_name': stats['clinic_name'],
             'total': stats['total'],
             'finished': stats['finished'],
             'avg_attendance': aa
         })
 
     def get_guiche_sort_key(item):
+        clinic = item.get('clinic_name', '')
         val = item['guiche']
         try:
-            return (0, int(val))
+            return (0, int(val), clinic)
         except (ValueError, TypeError):
-            return (1, str(val))
+            return (1, str(val), clinic)
     
     guiche_list.sort(key=get_guiche_sort_key)
 
@@ -970,6 +977,7 @@ def send_report_email():
     for g in report_data.get('guiches', []):
         guiche_rows_html += f"""
         <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">{g.get('clinic_name', clinic_name)}</td>
             <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">{g.get('guiche')}</td>
             <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{g.get('total')}</td>
             <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">{g.get('finished')}</td>
@@ -1033,7 +1041,7 @@ def send_report_email():
 
             {f'<h3 style="color: #073A7A;">Resumo por Tipo de Fila</h3><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead style="background: #f4f6f9;"><tr><th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Fila</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Geradas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Concluídas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Espera Média</th></tr></thead><tbody>{queue_rows_html}</tbody></table>' if queue_rows_html else ''}
             
-            {f'<h3 style="color: #073A7A;">Resumo por Guichê</h3><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead style="background: #f4f6f9;"><tr><th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Guichê</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Chamadas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Concluídas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Tempo Médio</th></tr></thead><tbody>{guiche_rows_html}</tbody></table>' if guiche_rows_html else ''}
+            {f'<h3 style="color: #073A7A;">Resumo por Guichê</h3><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><thead style="background: #f4f6f9;"><tr><th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Clínica</th><th style="padding: 10px; text-align: left; border-bottom: 2px solid #ddd;">Guichê</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Chamadas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Concluídas</th><th style="padding: 10px; text-align: center; border-bottom: 2px solid #ddd;">Tempo Médio</th></tr></thead><tbody>{guiche_rows_html}</tbody></table>' if guiche_rows_html else ''}
             
             <div style="background-color: #e7f3ff; color: #1d5287; padding: 15px; border-radius: 6px; margin-top: 20px; font-size: 14px;">
                 <strong>Nota:</strong> O relatório detalhado com cada uma das senhas, horários de criação, chamada e conclusão está anexado a este e-mail como arquivo <code>.csv</code>.
