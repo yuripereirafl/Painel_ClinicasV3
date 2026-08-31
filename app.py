@@ -544,14 +544,14 @@ def fetch_single_node_data(node, period='today', month_str=''):
         except Exception as e:
             print(f"Erro ao calcular dados locais para nó {node_name}: {e}")
 
-    # Para nós remotos via VPN, faz HTTP GET na API da clínica com timeout de 4.0s
+        # Para nós remotos via VPN, faz HTTP GET na API da clínica com timeout de 15.0s
     try:
         url = f"{clean_url}/api/reports/data?clinic_id={clinic_id}&period={period}"
         if period == 'custom-month' and month_str:
             url += f"&month={month_str}"
 
         req = Request(url, headers={'User-Agent': 'PainelCentral/3.0'})
-        with urlopen(req, timeout=4.0) as resp:
+        with urlopen(req, timeout=15.0) as resp:
             if resp.status == 200:
                 body = resp.read().decode('utf-8')
                 data = json.loads(body)
@@ -865,7 +865,7 @@ def send_report_email():
                     if period == 'custom-month' and month_str:
                         url += f"&month={month_str}"
                     req = Request(url, headers={'User-Agent': 'PainelCentral/3.0'})
-                    with urlopen(req, timeout=4.0) as resp:
+                    with urlopen(req, timeout=15.0) as resp:
                         if resp.status == 200:
                             data_list = json.loads(resp.read().decode('utf-8'))
                             for d in data_list:
@@ -947,7 +947,7 @@ def send_report_email():
                     if period == 'custom-month' and month_str:
                         url += f"&month={month_str}"
                     req = Request(url, headers={'User-Agent': 'PainelCentral/3.0'})
-                    with urlopen(req, timeout=4.0) as resp:
+                    with urlopen(req, timeout=15.0) as resp:
                         if resp.status == 200:
                             data_list = json.loads(resp.read().decode('utf-8'))
                             for d in data_list:
